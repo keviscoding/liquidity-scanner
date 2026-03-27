@@ -140,7 +140,7 @@ class NicheAgent:
         return self.discovered_candidates
 
     async def _generate_hypotheses(self) -> list[dict]:
-        prompt = AGENT_HYPOTHESIS_USER.format(direction=self.direction)
+        prompt = AGENT_HYPOTHESIS_USER.replace("{direction}", self.direction)
         try:
             result = await self.llm.complete_json(AGENT_HYPOTHESIS_SYSTEM, prompt)
             # Normalize: could be a list or a dict with a key containing a list
@@ -159,14 +159,14 @@ class NicheAgent:
     async def _decide_next_action(self, iteration: int, remaining_yt: int,
                                    last_action: str, last_findings: str) -> dict:
         context = "\n".join(self._context_log[-10:])
-        system = AGENT_DECIDE_SYSTEM.format(remaining_yt=remaining_yt, context=context)
-        user = AGENT_DECIDE_USER.format(
-            iteration=iteration,
-            max_iterations=self.max_iterations,
-            remaining_yt=remaining_yt,
-            last_action=last_action,
-            last_findings=last_findings[:600],
-        )
+        # Use replace instead of .format() because context contains JSON with curly braces
+        system = AGENT_DECIDE_SYSTEM.replace("{remaining_yt}", str(remaining_yt)).replace("{context}", context)
+        user = (AGENT_DECIDE_USER
+                .replace("{iteration}", str(iteration))
+                .replace("{max_iterations}", str(self.max_iterations))
+                .replace("{remaining_yt}", str(remaining_yt))
+                .replace("{last_action}", last_action)
+                .replace("{last_findings}", last_findings[:600]))
         try:
             result = await self.llm.complete_json(system, user, max_tokens=512)
             # Normalize the result — Claude might use "action" instead of "type", etc.

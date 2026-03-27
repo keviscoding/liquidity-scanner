@@ -70,7 +70,7 @@ async def quick_filter(
         )
         batches.append({
             "system": QUICK_FILTER_SYSTEM,
-            "user": QUICK_FILTER_USER.format(niches_block=niches_block),
+            "user": QUICK_FILTER_USER.replace("{niches_block}", niches_block),
             "batch_scores": batch,
         })
 
@@ -123,17 +123,17 @@ async def quick_filter(
 
 async def deep_analyze_one(client: LLMClient, score: NicheScore) -> AIAnalysis:
     """Deep analysis of a single niche."""
-    user_prompt = DEEP_ANALYSIS_USER.format(
-        term=score.term,
-        total_results=score.total_results,
-        videos_30d=score.videos_last_30d,
-        video_block=_format_video_block(score),
-        channel_block=_format_channel_block(score),
-        avg_views=f"{score.avg_views:,.0f}",
-        avg_subs=f"{score.avg_channel_subs:,.0f}",
-        v2s_ratio=f"{score.view_to_sub_ratio:.1f}",
-        small_pct=f"{score.small_channels_pct:.0f}",
-        avg_vpd=f"{score.avg_views_per_day:,.0f}",
+    user_prompt = (DEEP_ANALYSIS_USER
+        .replace("{term}", score.term)
+        .replace("{total_results}", str(score.total_results))
+        .replace("{videos_30d}", str(score.videos_last_30d))
+        .replace("{video_block}", _format_video_block(score))
+        .replace("{channel_block}", _format_channel_block(score))
+        .replace("{avg_views}", f"{score.avg_views:,.0f}")
+        .replace("{avg_subs}", f"{score.avg_channel_subs:,.0f}")
+        .replace("{v2s_ratio}", f"{score.view_to_sub_ratio:.1f}")
+        .replace("{small_pct}", f"{score.small_channels_pct:.0f}")
+        .replace("{avg_vpd}", f"{score.avg_views_per_day:,.0f}")
     )
 
     try:
@@ -173,22 +173,22 @@ async def _generate_briefing(client: LLMClient, score: NicheScore, analysis: dic
     best_views = score.best_video.view_count if score.best_video else 0
     best_ch_subs = score.best_video_channel_subs
 
-    user_prompt = BRIEFING_USER.format(
-        term=score.term,
-        confidence=analysis.get("confidence", "unknown"),
-        timing=analysis.get("timing", "unknown"),
-        opportunity_type=analysis.get("opportunity_type", ""),
-        buying_intent=", ".join(analysis.get("buying_intent_signals", [])),
-        monetization=", ".join(analysis.get("monetization_angles", [])),
-        risks=", ".join(analysis.get("risks", [])),
-        videos_30d=score.videos_last_30d,
-        avg_views=f"{score.avg_views:,.0f}",
-        avg_subs=f"{score.avg_channel_subs:,.0f}",
-        v2s_ratio=f"{score.view_to_sub_ratio:.1f}",
-        small_pct=f"{score.small_channels_pct:.0f}",
-        best_title=best_title,
-        best_views=f"{best_views:,}",
-        best_ch_subs=f"{best_ch_subs:,}",
+    user_prompt = (BRIEFING_USER
+        .replace("{term}", score.term)
+        .replace("{confidence}", analysis.get("confidence", "unknown"))
+        .replace("{timing}", analysis.get("timing", "unknown"))
+        .replace("{opportunity_type}", analysis.get("opportunity_type", ""))
+        .replace("{buying_intent}", ", ".join(analysis.get("buying_intent_signals", [])))
+        .replace("{monetization}", ", ".join(analysis.get("monetization_angles", [])))
+        .replace("{risks}", ", ".join(analysis.get("risks", [])))
+        .replace("{videos_30d}", str(score.videos_last_30d))
+        .replace("{avg_views}", f"{score.avg_views:,.0f}")
+        .replace("{avg_subs}", f"{score.avg_channel_subs:,.0f}")
+        .replace("{v2s_ratio}", f"{score.view_to_sub_ratio:.1f}")
+        .replace("{small_pct}", f"{score.small_channels_pct:.0f}")
+        .replace("{best_title}", best_title)
+        .replace("{best_views}", f"{best_views:,}")
+        .replace("{best_ch_subs}", f"{best_ch_subs:,}")
     )
 
     try:
