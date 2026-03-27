@@ -89,14 +89,25 @@ async def quick_filter(
             continue
 
         batch_scores = batches[batch_idx]["batch_scores"]
-        # Build term → score lookup
         term_map = {s.term.lower(): s for s in batch_scores}
 
-        if isinstance(result, list):
-            for item in result:
-                term = item.get("term", "").lower()
-                rating = item.get("rating", 0)
-                reason = item.get("reason", "")
+        # Normalize: Claude may return a list directly, or wrap it in a dict
+        items = result
+        if isinstance(result, dict):
+            for key in ("niches", "results", "ratings", "items"):
+                if key in result and isinstance(result[key], list):
+                    items = result[key]
+                    break
+            else:
+                items = [result]  # Single item dict
+
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                term = (item.get("term") or item.get("niche") or item.get("search_term") or "").lower().strip()
+                rating = int(item.get("rating") or item.get("score") or 0)
+                reason = item.get("reason") or item.get("rationale") or ""
                 if rating >= min_rating:
                     score = term_map.get(term)
                     if score:

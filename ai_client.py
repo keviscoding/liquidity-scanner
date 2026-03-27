@@ -38,16 +38,28 @@ class LLMClient:
 
     async def complete_json(self, system: str, user: str, max_tokens: int = 4096) -> dict | list:
         """Completion that returns parsed JSON. Instructs Claude to return JSON directly."""
-        json_system = system + "\n\nIMPORTANT: Return ONLY valid JSON. No markdown, no code fences, no explanation."
+        json_system = system + "\n\nIMPORTANT: Return ONLY valid JSON. No markdown, no code fences, no explanation text before or after the JSON."
         raw = await self.complete(json_system, user, max_tokens)
 
-        # Strip any markdown fences if Claude adds them
         text = raw.strip()
+
+        # Strip markdown code fences
         if text.startswith("```"):
             lines = text.split("\n")
             lines = [l for l in lines if not l.strip().startswith("```")]
             text = "\n".join(lines).strip()
 
+        # Find the JSON object/array boundaries in case Claude adds text around it
+        for start_char, end_char in [("{", "}"), ("[", "]")]:
+            start_idx = text.find(start_char)
+            end_idx = text.rfind(end_char)
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                try:
+                    return json.loads(text[start_idx:end_idx + 1])
+                except json.JSONDecodeError:
+                    continue
+
+        # Last resort: try parsing the whole thing
         return json.loads(text)
 
     async def batch_complete_json(

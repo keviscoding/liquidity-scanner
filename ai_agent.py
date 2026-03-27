@@ -142,13 +142,23 @@ class NicheAgent:
     async def _generate_hypotheses(self) -> list[dict]:
         prompt = AGENT_HYPOTHESIS_USER.format(direction=self.direction)
         try:
-            return await self.llm.complete_json(AGENT_HYPOTHESIS_SYSTEM, prompt)
-        except Exception:
-            return [{"hypothesis": self.direction, "search_terms": [self.direction], "reasoning": "fallback"}]
+            result = await self.llm.complete_json(AGENT_HYPOTHESIS_SYSTEM, prompt)
+            # Normalize: could be a list or a dict with a key containing a list
+            if isinstance(result, list):
+                return result
+            if isinstance(result, dict):
+                # Claude might wrap in {"hypotheses": [...]} or similar
+                for key in ("hypotheses", "results", "items"):
+                    if key in result and isinstance(result[key], list):
+                        return result[key]
+                return [result]  # Single hypothesis as dict
+            return [{"hypothesis": self.direction, "search_terms": [self.direction], "reasoning": "unexpected format"}]
+        except Exception as e:
+            return [{"hypothesis": self.direction, "search_terms": [self.direction], "reasoning": f"fallback: {str(e)[:50]}"}]
 
     async def _decide_next_action(self, iteration: int, remaining_yt: int,
                                    last_action: str, last_findings: str) -> dict:
-        context = "\n".join(self._context_log[-10:])  # Last 10 context entries
+        context = "\n".join(self._context_log[-10:])
         system = AGENT_DECIDE_SYSTEM.format(remaining_yt=remaining_yt, context=context)
         user = AGENT_DECIDE_USER.format(
             iteration=iteration,
@@ -158,13 +168,25 @@ class NicheAgent:
             last_findings=last_findings[:600],
         )
         try:
-            return await self.llm.complete_json(system, user, max_tokens=512)
-        except Exception:
+            result = await self.llm.complete_json(system, user, max_tokens=512)
+            # Normalize the result — Claude might use "action" instead of "type", etc.
+            if isinstance(result, dict):
+                action_type = result.get("type") or result.get("action") or result.get("next_action") or "done"
+                query = result.get("query") or result.get("search_term") or result.get("term") or ""
+                reasoning = result.get("reasoning") or result.get("reason") or result.get("rationale") or ""
+                return {"type": action_type, "query": query, "reasoning": reasoning}
+            # If it's somehow a list, take the first item
+            if isinstance(result, list) and result:
+                item = result[0]
+                if isinstance(item, dict):
+                    return {"type": item.get("type", "done"), "query": item.get("query", ""), "reasoning": item.get("reasoning", "")}
+            return {"type": "done", "reasoning": "unexpected LLM response format"}
+        except Exception as e:
             # Fallback: explore the next promising term
             if self._promising_terms:
                 return {"type": "explore_autocomplete", "query": self._promising_terms.pop(0),
-                        "reasoning": "fallback after LLM error"}
-            return {"type": "done", "reasoning": "no more terms to explore"}
+                        "reasoning": f"fallback after error: {str(e)[:50]}"}
+            return {"type": "done", "reasoning": f"error: {str(e)[:50]}"}
 
     async def _sample_youtube(self, query: str) -> str:
         """Use YouTube API to sample real video data for a term."""
