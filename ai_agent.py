@@ -9,9 +9,28 @@ from ai_prompts import (
     AGENT_HYPOTHESIS_SYSTEM, AGENT_HYPOTHESIS_USER,
     AGENT_DECIDE_SYSTEM, AGENT_DECIDE_USER,
     AGENT_REFLECT_SYSTEM, AGENT_REFLECT_USER,
+    RANDOM_EXPLORE_SYSTEM, RANDOM_EXPLORE_USER,
 )
 from models import CandidateNiche, AgentStep
 from discovery import fetch_autocomplete, expand_with_alphabet, crawl_autocomplete
+
+
+async def generate_random_seeds(llm: LLMClient) -> list[str]:
+    """Use AI to generate diverse, surprising seed niches autonomously."""
+    try:
+        result = await llm.complete_json(RANDOM_EXPLORE_SYSTEM, RANDOM_EXPLORE_USER)
+        seeds = []
+        items = result if isinstance(result, list) else result.get("seeds", result.get("niches", [result]))
+        for item in items:
+            if isinstance(item, dict):
+                seed = item.get("seed") or item.get("term") or item.get("niche") or ""
+                if seed:
+                    seeds.append(seed.lower().strip())
+            elif isinstance(item, str):
+                seeds.append(item.lower().strip())
+        return seeds if seeds else ["smart home device", "music production plugin", "fitness tracker app"]
+    except Exception:
+        return ["smart home device", "music production plugin", "fitness tracker app"]
 
 
 class NicheAgent:
@@ -36,6 +55,8 @@ class NicheAgent:
         self.youtube_budget_used = 0
         self._context_log: list[str] = []
         self._promising_terms: list[str] = []
+        self._explored_areas: list[str] = []  # Track which areas we've explored
+        self._steps_in_current_area = 0  # Force pivot after 3 steps in one area
 
     async def run(self) -> list[CandidateNiche]:
         """Execute the agentic exploration loop."""
@@ -60,7 +81,14 @@ class NicheAgent:
         for iteration in range(1, self.max_iterations + 1):
             remaining_yt = self.max_youtube_searches - self.youtube_budget_used
 
-            decision = await self._decide_next_action(iteration, remaining_yt, last_action, last_findings)
+            # Force diversity: after 3 steps in one area, pivot to something new
+            self._steps_in_current_area += 1
+            if self._steps_in_current_area > 3:
+                decision = {"type": "pivot", "query": "", "reasoning": "Forced diversity pivot — explored this area enough, moving to a new direction"}
+                self._steps_in_current_area = 0
+            else:
+                decision = await self._decide_next_action(iteration, remaining_yt, last_action, last_findings)
+
             action_type = decision.get("type", "done")
             query = decision.get("query", "")
             reasoning = decision.get("reasoning", "")
@@ -114,6 +142,7 @@ class NicheAgent:
             elif action_type == "pivot":
                 new_hyps = await self._pivot(reasoning)
                 self._promising_terms = []
+                self._steps_in_current_area = 0
                 for h in new_hyps:
                     for t in h.get("search_terms", []):
                         self._promising_terms.append(t)

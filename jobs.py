@@ -30,9 +30,22 @@ async def _run_standard_async(scan_id: int, config: dict):
     max_depth = config.get("max_depth", 3)
     extra_seeds = config.get("extra_seeds", [])
 
-    # Step 1: Discover seeds
-    _progress(scan_id, "Discovering seed niches from trending data...", "discover", 5)
+    # Step 1: Discover seeds (combine hardcoded + AI-generated for maximum diversity)
+    _progress(scan_id, "Discovering seed niches from trending data...", "discover", 3)
     seeds = discover_seed_niches(verbose=False)
+
+    # Add AI-generated random seeds for spontaneous discovery
+    if _ai_available():
+        _progress(scan_id, "AI generating surprising seed niches...", "discover", 5)
+        try:
+            from ai_agent import generate_random_seeds
+            from ai_client import get_fast_client
+            ai_seeds = await generate_random_seeds(get_fast_client())
+            seeds = list(set(seeds + ai_seeds))
+            _progress(scan_id, f"AI added {len(ai_seeds)} diverse seeds", "discover", 7)
+        except Exception:
+            pass
+
     if extra_seeds:
         seeds = list(set(seeds + [s.lower().strip() for s in extra_seeds]))
     seeds = seeds[:max_seeds]

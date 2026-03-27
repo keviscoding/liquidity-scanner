@@ -51,6 +51,7 @@ def init_db():
                 best_video_title    TEXT,
                 best_video_views    INTEGER,
                 best_video_channel_subs INTEGER,
+                top_channels        TEXT,
                 parent_chain        TEXT,
                 scanned_at          TEXT
             );
@@ -169,8 +170,8 @@ def save_results(scan_id: int, scores):
                     total_results, videos_last_30d, avg_views, avg_views_per_day,
                     avg_channel_subs, view_to_sub_ratio, small_channels_pct,
                     best_video_title, best_video_views, best_video_channel_subs,
-                    parent_chain, scanned_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    top_channels, parent_chain, scanned_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 scan_id, i, s.term, s.overall_score, s.liquidity_score,
                 s.velocity_score, s.recency_score, s.competition_score, s.specificity_score,
@@ -179,6 +180,7 @@ def save_results(scan_id: int, scores):
                 s.best_video.title if s.best_video else "",
                 s.best_video.view_count if s.best_video else 0,
                 s.best_video_channel_subs,
+                " | ".join(s.top_channels) if s.top_channels else "",
                 " > ".join(s.parent_chain),
                 s.searched_at.isoformat(),
             ))

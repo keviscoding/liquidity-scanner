@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from statistics import mean
 from googleapiclient.discovery import build
@@ -11,6 +12,36 @@ from cache import cache_get, cache_set
 import quota as quota_tracker
 
 console = Console()
+
+# Non-Latin script ranges to detect non-English titles
+_NON_LATIN_RE = re.compile(
+    r'[\u0900-\u097F'   # Devanagari (Hindi)
+    r'\u0980-\u09FF'    # Bengali
+    r'\u0A00-\u0A7F'    # Gurmukhi (Punjabi)
+    r'\u0B00-\u0B7F'    # Oriya
+    r'\u0B80-\u0BFF'    # Tamil
+    r'\u0C00-\u0C7F'    # Telugu
+    r'\u0C80-\u0CFF'    # Kannada
+    r'\u0D00-\u0D7F'    # Malayalam
+    r'\u0E00-\u0E7F'    # Thai
+    r'\u1000-\u109F'    # Myanmar
+    r'\u3040-\u309F'    # Hiragana
+    r'\u30A0-\u30FF'    # Katakana
+    r'\u4E00-\u9FFF'    # CJK (Chinese)
+    r'\uAC00-\uD7AF'    # Korean Hangul
+    r'\u0600-\u06FF'    # Arabic
+    r'\u0590-\u05FF'    # Hebrew
+    r']'
+)
+
+
+def is_english_title(title: str) -> bool:
+    """Check if a video title is primarily English (no significant non-Latin script)."""
+    if not title:
+        return True
+    non_latin_chars = len(_NON_LATIN_RE.findall(title))
+    # Allow up to 2 non-Latin chars (emojis get misclassified sometimes)
+    return non_latin_chars <= 2
 
 
 def _get_youtube_client():
@@ -44,15 +75,22 @@ def search_videos(youtube, term: str) -> tuple[list[dict], int]:
         q=term,
         type="video",
         part="id,snippet",
-        maxResults=25,
+        maxResults=50,  # Fetch more so we still have 25+ after English filter
         order="date",
         publishedAfter=thirty_days_ago,
+        relevanceLanguage="en",
     ).execute()
 
     quota_tracker.record_usage("search.list", 100, {"q": term})
 
     items = response.get("items", [])
     total = response.get("pageInfo", {}).get("totalResults", 0)
+
+    # Filter to English-title videos only
+    items = [
+        item for item in items
+        if is_english_title(item.get("snippet", {}).get("title", ""))
+    ]
 
     cache_set("search", cache_key, {"items": items, "total_results": total})
     return items, total
@@ -169,13 +207,13 @@ def compute_score(
     else:
         recency = max(0, videos_30d * 10)
 
-    # --- Velocity Score ---
+    # --- Velocity Score (tightened: 2000 views/day = 100, not 500) ---
     velocities = []
     for v in videos:
         age_days = max(1, (now - v.published_at).days)
         velocities.append(v.view_count / age_days)
     avg_velocity = mean(velocities) if velocities else 0
-    velocity = min(100, avg_velocity / 5)
+    velocity = min(100, avg_velocity / 20)  # 2000 views/day = 100
 
     # --- Liquidity Score (THE KEY METRIC) ---
     channel_map = {ch.channel_id: ch for ch in channels}
@@ -256,8 +294,18 @@ def compute_score(
     small_pct = (len(small_channels) / max(len(channels), 1)) * 100
     v2s_ratio = avg_views / max(avg_subs, 1) if videos else 0
 
-    best = max(videos, key=lambda v: v.view_count) if videos else None
+    # Best video: prioritize small channel videos with high views (the liquidity proof)
+    # Not the overall highest-view video, which is often from a massive irrelevant channel
+    small_channel_vids = [v for v in videos if v.channel_id in small_channels]
+    if small_channel_vids:
+        best = max(small_channel_vids, key=lambda v: v.view_count)
+    else:
+        best = max(videos, key=lambda v: v.view_count) if videos else None
     best_ch_subs = channel_map.get(best.channel_id, ChannelData("", "", 0)).subscriber_count if best else 0
+
+    # Top small channels (sorted by lowest subs first — the most impressive liquidity proof)
+    top_small = sorted(small_channels.values(), key=lambda c: c.subscriber_count)[:5]
+    top_channel_urls = [c.url for c in top_small]
 
     return NicheScore(
         term=term,
@@ -276,6 +324,7 @@ def compute_score(
         small_channels_pct=round(small_pct, 1),
         best_video=best,
         best_video_channel_subs=best_ch_subs,
+        top_channels=top_channel_urls,
         videos_analyzed=videos,
         channels_analyzed=channels,
         parent_chain=parent_chain,
@@ -360,4 +409,56 @@ def analyze_candidates(
             progress.advance(task)
 
     results.sort(key=lambda s: s.overall_score, reverse=True)
-    return results
+    return dedup_niches(results)
+
+
+def dedup_niches(scores: list[NicheScore]) -> list[NicheScore]:
+    """Remove near-duplicate niches. Keeps the highest-scoring version of each."""
+    if not scores:
+        return scores
+
+    # Synonym groups — words that mean the same thing in niche contexts
+    _synonyms = {
+        "swap": "change", "replace": "change", "switch": "change", "transform": "change",
+        "make": "create", "build": "create", "generate": "create",
+        "get": "find", "download": "get",
+        "tutorial": "guide", "course": "guide", "lesson": "guide",
+        "cheap": "budget", "affordable": "budget",
+        "pc": "computer", "laptop": "computer",
+        "app": "software", "tool": "software", "program": "software",
+        "through": "using", "via": "using",
+    }
+
+    def _normalize(term: str) -> set[str]:
+        """Reduce a term to its core word set, with synonym folding."""
+        stop = {"how", "to", "the", "a", "an", "in", "for", "with", "using", "by", "on", "your", "my",
+                "through", "from", "and", "or", "of", "is", "are", "can", "do", "does", "what", "best",
+                "top", "free", "online", "new", "good", "i"}
+        words = set()
+        for w in term.lower().split():
+            if w in stop:
+                continue
+            words.add(_synonyms.get(w, w))
+        return words
+
+    kept = []
+    seen_word_sets = []
+
+    for s in scores:
+        words = _normalize(s.term)
+        if not words:
+            kept.append(s)
+            continue
+
+        is_dup = False
+        for seen in seen_word_sets:
+            overlap = len(words & seen) / max(len(words | seen), 1)
+            if overlap >= 0.65:
+                is_dup = True
+                break
+
+        if not is_dup:
+            kept.append(s)
+            seen_word_sets.append(words)
+
+    return kept

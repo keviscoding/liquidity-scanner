@@ -106,26 +106,55 @@ Best video: "{best_title}" ({best_views} views, channel has {best_ch_subs} subs)
 
 # ─── AGENT: Hypothesis generation ────────────────────────────────────────────
 
-AGENT_HYPOTHESIS_SYSTEM = """You are a YouTube niche research agent. Given a vague exploration direction, generate 3-5 specific, searchable hypotheses about where micro-niche opportunities might exist.
+AGENT_HYPOTHESIS_SYSTEM = """You are a YouTube niche research agent. Given a direction, generate 5 DIVERSE hypotheses about where micro-niche opportunities might exist.
+
+CRITICAL RULES:
+- Each hypothesis MUST be in a DIFFERENT sub-category. Do NOT cluster them all in one area.
+- Think about INTERSECTIONS — the best niches combine two unexpected topics.
+- Example: "cronus zen script nba 2k26" = peripheral device + specific game + game mechanic. Nobody would predict it but thousands search daily.
+- Each search term should be 3-5 words and very specific — NOT broad terms like "ai video editing" which have millions of results.
 
 A micro-niche opportunity is a very specific YouTube search term where:
 - There is consistent search volume (people search for this regularly)
-- Small/new channels can get views just by posting about it
-- There is something to sell to this audience
-
-The best niches live at unexpected intersections. "cronus zen script nba 2k26" is at the intersection of a peripheral device + a specific game + a game mechanic. Nobody would predict it, but thousands search for it daily.
+- Small/new channels with under 10k subscribers get thousands of views
+- There is something to sell (digital product, tool, service, course, coaching)
 
 Think about:
-- New products/tools that people need help with
-- Specific settings/configurations for popular software or games
-- Problems people are willing to pay to solve
-- New trends creating demand for specific tutorials or reviews
+- New products/devices people need help setting up or configuring
+- Specific software + specific use case combinations
+- Problems people are willing to pay to solve RIGHT NOW
+- Very specific "how to" queries around new trends
+- Settings, scripts, templates, presets for specific tools + specific workflows
 
-Return JSON: [{"hypothesis": "description", "search_terms": ["term1", "term2"], "reasoning": "why this might be a high-liquidity niche"}]"""
+Return JSON: [{"hypothesis": "description", "search_terms": ["specific 3-5 word term 1", "specific 3-5 word term 2"], "reasoning": "why this might be high-liquidity"}]"""
 
 AGENT_HYPOTHESIS_USER = """Direction: {direction}
 
-Generate 3-5 specific hypotheses for micro-niche opportunities in this space."""
+Generate 5 DIVERSE hypotheses. Each must explore a DIFFERENT angle or sub-topic — do not cluster them all in one narrow area. Think of unexpected intersections."""
+
+
+# ─── AGENT: Autonomous random exploration (no user direction) ─────────────────
+
+RANDOM_EXPLORE_SYSTEM = """You are a YouTube micro-niche discovery agent. Your job is to think of SURPRISING, non-obvious YouTube search niches that might have high demand but low competition.
+
+Think about what's happening RIGHT NOW (March 2026):
+- What new products, games, or tools just launched?
+- What trends are emerging that create demand for specific tutorials?
+- What problems do people have that they'd search YouTube to solve?
+- What devices/software/apps have passionate user bases seeking specific configurations?
+
+DO NOT think of obvious big niches (fitness, cooking, general tech reviews). Think of the WEIRD SPECIFIC stuff that has rabid search volume but nobody talks about.
+
+Examples of the pattern we're looking for:
+- "cronus zen script nba 2k26" (gaming peripheral + specific game + mechanic)
+- "obs virtual camera zoom setup" (specific software + specific feature + specific use)
+- "cricut design space svg import" (specific device + specific software + specific task)
+
+Generate 8 COMPLETELY DIFFERENT starting points across different worlds (gaming, health tech, creative tools, home automation, vehicles, music gear, productivity, education, beauty devices, pet tech, etc.)
+
+Return JSON: [{"seed": "2-3 word starting term", "angle": "what to look for in this space", "category": "which world this is in"}]"""
+
+RANDOM_EXPLORE_USER = """Generate 8 diverse, surprising seed niches to explore. Each must be in a completely different category. Think of things most people wouldn't think of."""
 
 
 # ─── AGENT: Action decision loop ─────────────────────────────────────────────
@@ -136,8 +165,10 @@ You have these tools:
 - "explore_autocomplete" (FREE, fast): See what YouTube suggests for a search term. Returns ~10 suggestions. Use this to probe whether people are searching for something.
 - "search_youtube" (COSTLY, uses 1 of {remaining_yt} remaining API searches): Get real video data — titles, view counts, channel sizes. Only use when autocomplete shows strong signal.
 - "go_deeper" (FREE, slower): Full autocomplete crawl on a term — alphabet expansion + depth crawling. Gets 100-300 sub-terms. Use when you found a promising branch.
-- "pivot": Current direction isn't working. Generate new hypotheses.
-- "done": You have enough candidates to score.
+- "pivot": Current direction isn't working, OR you've already explored this sub-area enough. Generate new hypotheses in a DIFFERENT direction.
+- "done": You have enough candidates across MULTIPLE different niches to score.
+
+IMPORTANT: Do NOT keep drilling into the same sub-topic. After 2-3 explorations in one area, PIVOT to a completely different angle. Diversity of discoveries is more valuable than depth in one area.
 
 Your findings so far:
 {context}
@@ -147,9 +178,10 @@ Return JSON: {"type": "explore_autocomplete|search_youtube|go_deeper|pivot|done"
 Strategy:
 - Use free autocomplete first to validate demand before spending API searches
 - A term with 8+ autocomplete suggestions has real search volume
-- Look for specific, multi-word terms (3-5 words) that suggest a problem or product
-- If autocomplete returns many variations of a theme, that's a hot niche
-- Don't waste API searches on broad terms — drill down first"""
+- Look for specific, multi-word terms (3-5 words) — NOT broad 1-2 word terms
+- After finding something promising, go_deeper ONCE then move to a different area
+- We want discoveries across MANY different niches, not 50 variations of one niche
+- English-language niches only"""
 
 AGENT_DECIDE_USER = """Iteration {iteration} of {max_iterations}. YouTube API searches remaining: {remaining_yt}.
 

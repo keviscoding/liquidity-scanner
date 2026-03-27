@@ -69,6 +69,10 @@ class ChannelData:
     video_count: int = 0
     view_count: int = 0
 
+    @property
+    def url(self) -> str:
+        return f"https://www.youtube.com/channel/{self.channel_id}" if self.channel_id else ""
+
 
 @dataclass
 class NicheScore:
@@ -91,6 +95,7 @@ class NicheScore:
     videos_analyzed: list[VideoData] = field(default_factory=list)
     channels_analyzed: list[ChannelData] = field(default_factory=list)
     parent_chain: list[str] = field(default_factory=list)
+    top_channels: list[str] = field(default_factory=list)  # Channel URLs of top small channels
     searched_at: datetime = field(default_factory=datetime.now)
     quota_cost: int = 0
 
