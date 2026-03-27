@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Liquidity Scanner</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">LiquidityScan</span>
+      </div>
+
+      <!-- Quota widget -->
+      <div class="quota-card">
+        <div class="quota-label">
+          <span>API Quota</span>
+          <span class="quota-num">{{ quota_remaining | int | format_number }} left</span>
+        </div>
+        <div class="quota-bar">
+          <div class="quota-fill {% if quota_remaining < 2000 %}danger{% elif quota_remaining < 5000 %}warn{% endif %}"
+               style="width: {{ ((quota_total - quota_remaining) / quota_total * 100) | int }}%"></div>
+        </div>
+        <div class="quota-sub">{{ searches_remaining }} searches remaining today</div>
+      </div>
+
+      <!-- Scan history -->
+      <div class="sidebar-label">Recent Scans</div>
+      <nav class="scan-list">
+        {% for s in scans %}
+        <a href="/scan/{{ s.id }}" class="scan-item status-{{ s.status }}">
+          <div class="scan-item-top">
+            <span class="scan-dot status-{{ s.status }}"></span>
+            <span class="scan-mode">{{ s.mode | upper }}</span>
+            <span class="scan-results">{{ s.result_count }} niches</span>
+          </div>
+          <div class="scan-item-date">{{ s.created_at[:16].replace('T',' ') }}</div>
+        </a>
+        {% else %}
+        <div class="empty-list">No scans yet</div>
+        {% endfor %}
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-sub">Find niches where small channels are getting outsized views</p>
+        </div>
+        <button class="btn-primary" onclick="openModal()">+ New Scan</button>
+      </header>
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-num">{{ scans | length }}</div>
+          <div class="stat-label">Total Scans</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">{{ scans | selectattr('status','eq','completed') | list | length }}</div>
+          <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">{{ searches_remaining }}</div>
+          <div class="stat-label">Searches Left Today</div>
+        </div>
+        <div class="stat-card">
+          {% if not has_api_key %}
+          <div class="stat-num warn">!</div>
+          <div class="stat-label warn">API Key Missing</div>
+          {% else %}
+          <div class="stat-num green">✓</div>
+          <div class="stat-label">API Connected</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="how-it-works">
+        <h2 class="section-title">How It Works</h2>
+        <div class="steps-row">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-title">Seed Discovery</div>
+            <div class="step-desc">Pulls trending searches and samples 100+ broad niches across gaming, fitness, finance, AI, beauty, and more</div>
+          </div>
+          <div class="step-arrow">→</div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-title">Autocomplete Crawl</div>
+            <div class="step-desc">Free. Drills into YouTube autocomplete 3 levels deep with alphabet expansion — finds thousands of specific sub-terms</div>
+          </div>
+          <div class="step-arrow">→</div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-title">Liquidity Scoring</div>
+            <div class="step-desc">Searches each top candidate, checks if small channels (&lt;10k subs) are getting outsized views vs their subscriber count</div>
+          </div>
+          <div class="step-arrow">→</div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-title">Results</div>
+            <div class="step-desc">Ranked table of niches by Liquidity Score — the ones where there's proven demand and low barrier to entry</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- New Scan Modal -->
+  <div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>New Scan</h2>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <div class="form-group">
+          <label class="toggle-row">
+            <div>
+              <div class="form-label">Dry Run (free)</div>
+              <div class="form-hint">Discovery only — finds and ranks candidates without using API quota</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="dryRun" onchange="toggleDryRun()"/>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+
+        <div id="apiOptions">
+          <div class="form-group">
+            <label class="form-label">Max API Searches <span class="badge">~102 quota units each</span></label>
+            <div class="range-row">
+              <input type="range" id="maxSearches" min="5" max="90" value="50" oninput="updateSearchLabel()"/>
+              <span class="range-val" id="searchLabel">50</span>
+            </div>
+            <div class="form-hint">Each search costs ~102 quota units. You have {{ searches_remaining }} searches available today.</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Seed Niches to Crawl</label>
+          <div class="range-row">
+            <input type="range" id="maxSeeds" min="5" max="50" value="25" oninput="updateSeedLabel()"/>
+            <span class="range-val" id="seedLabel">25</span>
+          </div>
+          <div class="form-hint">More seeds = broader coverage but longer crawl time. Each seed takes ~2–3 min to crawl.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Extra Seeds <span class="form-hint">(optional)</span></label>
+          <input type="text" id="extraSeeds" class="form-input"
+                 placeholder="e.g. keto diet, ai art, dropshipping — comma separated"/>
+        </div>
+
+        <div class="modal-warn" id="apiWarn" style="display:none">
+          ⚠ No API key configured. Only Dry Run mode is available.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="startScan()">Start Scan</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+  <script>
+    {% if not has_api_key %}
+    document.getElementById('dryRun').checked = true;
+    document.getElementById('apiOptions').style.display = 'none';
+    document.getElementById('apiWarn').style.display = 'block';
+    {% endif %}
+  </script>
+</body>
+</html>

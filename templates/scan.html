@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scan #{{ scan.id }} — Liquidity Scanner</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <a href="/" style="text-decoration:none;display:flex;align-items:center;gap:10px">
+          <span class="logo-icon">◈</span>
+          <span class="logo-text">LiquidityScan</span>
+        </a>
+      </div>
+      <a href="/" class="btn-ghost" style="margin:12px 16px;display:block;text-align:center">← Dashboard</a>
+      <div class="sidebar-label">Scan Info</div>
+      <div class="scan-meta">
+        <div class="meta-row"><span>Status</span><span class="badge status-{{ scan.status }}">{{ scan.status }}</span></div>
+        <div class="meta-row"><span>Mode</span><span>{{ scan.mode }}</span></div>
+        <div class="meta-row"><span>Results</span><span>{{ results | length }}</span></div>
+        <div class="meta-row"><span>Started</span><span>{{ scan.started_at[:16].replace('T',' ') if scan.started_at else '—' }}</span></div>
+        <div class="meta-row"><span>Finished</span><span>{{ scan.finished_at[:16].replace('T',' ') if scan.finished_at else '—' }}</span></div>
+      </div>
+      {% if results %}
+      <div style="padding:0 16px;margin-top:12px">
+        <a href="/api/results/{{ scan.id }}/export" class="btn-ghost" style="display:block;text-align:center">↓ Export CSV</a>
+      </div>
+      {% endif %}
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 class="page-title">Scan #{{ scan.id }}</h1>
+          <p class="page-sub">{{ scan.mode | upper }} · {{ scan.created_at[:16].replace('T',' ') }}</p>
+        </div>
+      </header>
+
+      <!-- Live progress (only shown while running) -->
+      {% if is_running or scan.status == 'running' %}
+      <div class="progress-card" id="progressCard">
+        <div class="progress-header">
+          <span class="pulse-dot"></span>
+          <span id="progressMsg">Initializing scan...</span>
+          <span id="progressPct" class="progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill" style="width:0%"></div>
+        </div>
+        <div class="progress-log" id="progressLog"></div>
+      </div>
+      {% endif %}
+
+      {% if scan.error %}
+      <div class="error-card">⚠ {{ scan.error }}</div>
+      {% endif %}
+
+      <!-- Results table -->
+      {% if results %}
+      <div class="results-section">
+        <div class="results-header">
+          <h2 class="section-title">{{ results | length }} Niches Found</h2>
+          <div class="filter-row">
+            <input type="text" id="filterInput" class="form-input small" placeholder="Filter niches..." oninput="filterTable()"/>
+            <select id="sortSelect" class="form-select" onchange="sortTable()">
+              <option value="overall">Sort: Overall</option>
+              <option value="liquidity">Sort: Liquidity</option>
+              <option value="velocity">Sort: Velocity</option>
+              <option value="recency">Sort: Recency</option>
+              <option value="views">Sort: Avg Views</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="results-table" id="resultsTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Search Term</th>
+                <th>Score</th>
+                <th>Liquidity</th>
+                <th>Velocity</th>
+                <th>Recency</th>
+                <th>Avg Views</th>
+                <th>Avg Subs</th>
+                <th>V/S Ratio</th>
+                <th>Videos 30d</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              {% for r in results %}
+              <tr class="result-row" onclick="openDetail({{ loop.index0 }})"
+                  data-term="{{ r.term }}"
+                  data-overall="{{ r.overall_score }}"
+                  data-liquidity="{{ r.liquidity_score }}"
+                  data-velocity="{{ r.velocity_score }}"
+                  data-recency="{{ r.recency_score }}"
+                  data-views="{{ r.avg_views }}">
+                <td class="rank-cell">{{ r.rank }}</td>
+                <td class="term-cell">{{ r.term }}</td>
+                <td><span class="score-badge {{ r.overall_score | score_class }}">{{ r.overall_score }}</span></td>
+                <td><span class="score-badge {{ r.liquidity_score | score_class }}">{{ r.liquidity_score | int }}</span></td>
+                <td><span class="score-badge {{ r.velocity_score | score_class }}">{{ r.velocity_score | int }}</span></td>
+                <td><span class="score-badge {{ r.recency_score | score_class }}">{{ r.recency_score | int }}</span></td>
+                <td>{{ "{:,.0f}".format(r.avg_views or 0) }}</td>
+                <td>{{ "{:,.0f}".format(r.avg_channel_subs or 0) }}</td>
+                <td class="{% if (r.view_to_sub_ratio or 0) >= 5 %}highlight{% endif %}">{{ "%.1f"|format(r.view_to_sub_ratio or 0) }}x</td>
+                <td>{{ r.videos_last_30d }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% elif scan.status == 'completed' %}
+      <div class="empty-state">
+        <div class="empty-icon">◎</div>
+        <div>No scoreable niches found in this scan.</div>
+        <div class="form-hint">Try a dry run or different seeds.</div>
+      </div>
+      {% elif scan.status not in ('running', 'pending') %}
+      <div class="empty-state">
+        <div class="empty-icon">◎</div>
+        <div>Scan has no results yet.</div>
+      </div>
+      {% endif %}
+    </main>
+  </div>
+
+  <!-- Detail drawer -->
+  <div class="drawer-overlay" id="drawer" onclick="closeDrawer()">
+    <div class="drawer" onclick="event.stopPropagation()">
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+      <div id="drawerContent"></div>
+    </div>
+  </div>
+
+  <script>
+    const results = {{ results | tojson }};
+  </script>
+  <script src="/static/app.js"></script>
+  {% if is_running or scan.status == 'running' %}
+  <script>
+    startProgressStream({{ scan.id }});
+  </script>
+  {% endif %}
+</body>
+</html>

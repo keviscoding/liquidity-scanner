@@ -1,0 +1,95 @@
+from dataclasses import dataclass, field
+from datetime import datetime
+
+
+@dataclass
+class AutocompleteSuggestion:
+    term: str
+    parent_term: str
+    depth: int
+    discovered_at: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class CandidateNiche:
+    term: str
+    depth: int
+    word_count: int
+    autocomplete_branch_count: int = 0
+    parent_chain: list[str] = field(default_factory=list)
+
+    @property
+    def pre_score(self) -> float:
+        wc = self.word_count
+        if wc >= 6:
+            wc_score = 70
+        elif wc == 5:
+            wc_score = 90
+        elif wc == 4:
+            wc_score = 100
+        elif wc == 3:
+            wc_score = 80
+        elif wc == 2:
+            wc_score = 40
+        else:
+            wc_score = 15
+
+        branch_score = min(self.autocomplete_branch_count / 10 * 100, 100)
+
+        if self.depth == 2:
+            depth_score = 100
+        elif self.depth == 3:
+            depth_score = 80
+        elif self.depth == 1:
+            depth_score = 50
+        else:
+            depth_score = 30
+
+        return wc_score * 0.3 + branch_score * 0.4 + depth_score * 0.3
+
+
+@dataclass
+class VideoData:
+    video_id: str
+    title: str
+    channel_id: str
+    channel_title: str
+    published_at: datetime
+    view_count: int = 0
+    like_count: int = 0
+    comment_count: int = 0
+    duration_seconds: int = 0
+
+
+@dataclass
+class ChannelData:
+    channel_id: str
+    title: str
+    subscriber_count: int = 0
+    video_count: int = 0
+    view_count: int = 0
+
+
+@dataclass
+class NicheScore:
+    term: str
+    overall_score: float = 0.0
+    recency_score: float = 0.0
+    velocity_score: float = 0.0
+    liquidity_score: float = 0.0
+    competition_score: float = 0.0
+    specificity_score: float = 0.0
+    total_results: int = 0
+    videos_last_30d: int = 0
+    avg_views: float = 0.0
+    avg_views_per_day: float = 0.0
+    avg_channel_subs: float = 0.0
+    view_to_sub_ratio: float = 0.0
+    small_channels_pct: float = 0.0
+    best_video: VideoData | None = None
+    best_video_channel_subs: int = 0
+    videos_analyzed: list[VideoData] = field(default_factory=list)
+    channels_analyzed: list[ChannelData] = field(default_factory=list)
+    parent_chain: list[str] = field(default_factory=list)
+    searched_at: datetime = field(default_factory=datetime.now)
+    quota_cost: int = 0
