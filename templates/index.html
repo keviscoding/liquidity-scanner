@@ -125,6 +125,34 @@
       <div class="modal-body">
 
         <div class="form-group">
+          <label class="form-label">Scan Type</label>
+          <div class="scan-type-row">
+            <label class="scan-type-option selected" onclick="setScanType('standard')">
+              <input type="radio" name="scanType" value="standard" checked/>
+              <div class="scan-type-label">Standard</div>
+              <div class="scan-type-desc">Broad discovery across all categories</div>
+            </label>
+            <label class="scan-type-option" onclick="setScanType('agent')">
+              <input type="radio" name="scanType" value="agent"/>
+              <div class="scan-type-label">Agent</div>
+              <div class="scan-type-desc">AI explores a direction you choose</div>
+            </label>
+            <label class="scan-type-option" onclick="setScanType('rescan')">
+              <input type="radio" name="scanType" value="rescan"/>
+              <div class="scan-type-label">Rescan</div>
+              <div class="scan-type-desc">Re-check previous top niches for trends</div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="agentOptions" style="display:none">
+          <label class="form-label">Exploration Direction</label>
+          <input type="text" id="agentDirection" class="form-input"
+                 placeholder="e.g. gaming peripherals for new console cycle, AI tools for content creators"/>
+          <div class="form-hint">Give the AI agent a direction. It will explore YouTube autonomously, forming hypotheses and drilling into promising niches.</div>
+        </div>
+
+        <div class="form-group" id="dryRunGroup">
           <label class="toggle-row">
             <div>
               <div class="form-label">Dry Run (free)</div>

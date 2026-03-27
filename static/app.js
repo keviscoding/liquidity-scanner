@@ -1,3 +1,22 @@
+/* ── Scan Type Selector ────────────────────────────────────────────────────── */
+let currentScanType = 'standard';
+
+function setScanType(type) {
+  currentScanType = type;
+  document.querySelectorAll('.scan-type-option').forEach(el => el.classList.remove('selected'));
+  document.querySelector(`.scan-type-option input[value="${type}"]`)?.closest('.scan-type-option')?.classList.add('selected');
+
+  const agentOpts = document.getElementById('agentOptions');
+  const dryRunGroup = document.getElementById('dryRunGroup');
+  const apiOptions = document.getElementById('apiOptions');
+  const seedGroup = document.getElementById('seedGroup');
+
+  if (agentOpts) agentOpts.style.display = type === 'agent' ? 'block' : 'none';
+  if (dryRunGroup) dryRunGroup.style.display = type === 'rescan' ? 'none' : 'block';
+  if (apiOptions) apiOptions.style.display = (type === 'rescan' || document.getElementById('dryRun')?.checked) ? 'none' : 'block';
+  if (seedGroup) seedGroup.style.display = type === 'rescan' ? 'none' : 'block';
+}
+
 /* ── Modal ────────────────────────────────────────────────────────────────── */
 function openModal() {
   document.getElementById('modal').classList.add('open');
@@ -25,6 +44,7 @@ async function startScan() {
   const maxSeeds = parseInt(document.getElementById('maxSeeds')?.value ?? '25');
   const extraRaw = document.getElementById('extraSeeds')?.value ?? '';
   const extraSeeds = extraRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const agentDirection = document.getElementById('agentDirection')?.value ?? '';
 
   const btn = document.querySelector('.modal-footer .btn-primary');
   btn.textContent = 'Starting...';
@@ -34,7 +54,14 @@ async function startScan() {
     const res = await fetch('/api/scans', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dry_run: dryRun, max_searches: maxSearches, max_seeds: maxSeeds, extra_seeds: extraSeeds }),
+      body: JSON.stringify({
+        dry_run: dryRun,
+        max_searches: maxSearches,
+        max_seeds: maxSeeds,
+        extra_seeds: extraSeeds,
+        scan_type: currentScanType,
+        agent_direction: agentDirection,
+      }),
     });
 
     if (!res.ok) {
@@ -68,11 +95,10 @@ function startProgressStream(scanId) {
     if (data.done) {
       es.close();
       if (data.status === 'completed') {
-        // Reload to show results
         setTimeout(() => window.location.reload(), 800);
       } else {
-        msg.textContent = 'Scan failed. Check the error above.';
-        pct.textContent = '';
+        if (msg) msg.textContent = 'Scan failed. Check the error above.';
+        if (pct) pct.textContent = '';
       }
       return;
     }
@@ -86,8 +112,7 @@ function startProgressStream(scanId) {
       line.textContent = data.message;
       log.appendChild(line);
       log.scrollTop = log.scrollHeight;
-      // Keep log from getting too long
-      while (log.children.length > 30) log.removeChild(log.firstChild);
+      while (log.children.length > 40) log.removeChild(log.firstChild);
     }
   };
 
@@ -110,9 +135,11 @@ function sortTable() {
   if (!tbody) return;
   const rows = Array.from(tbody.querySelectorAll('.result-row'));
   rows.sort((a, b) => {
-    const aVal = parseFloat(a.dataset[key] ?? '0');
-    const bVal = parseFloat(b.dataset[key] ?? '0');
-    return bVal - aVal;
+    if (key === 'confidence') {
+      const order = {'high': 0, 'medium': 1, 'low': 2, '': 3, 'unknown': 3};
+      return (order[a.dataset.confidence || ''] || 3) - (order[b.dataset.confidence || ''] || 3);
+    }
+    return parseFloat(b.dataset[key] ?? '0') - parseFloat(a.dataset[key] ?? '0');
   });
   rows.forEach(r => tbody.appendChild(r));
 }
@@ -126,19 +153,36 @@ function scoreClass(v) {
   return 'score-none';
 }
 
+function confClass(c) {
+  if (c === 'high') return 'conf-high';
+  if (c === 'medium') return 'conf-medium';
+  return 'conf-low';
+}
+
 function openDetail(idx) {
   if (typeof results === 'undefined') return;
   const r = results[idx];
   if (!r) return;
+
+  // Try to find AI analysis for this term
+  const ai = (typeof aiAnalyses !== 'undefined')
+    ? aiAnalyses.find(a => a.term.toLowerCase() === r.term.toLowerCase())
+    : null;
 
   const pathChips = (r.parent_chain || '').split(' > ')
     .filter(Boolean)
     .map(p => `<span class="path-chip">${p}</span>`)
     .join('');
 
-  const html = `
-    <div class="drawer-term">${r.term}</div>
+  let html = `<div class="drawer-term">${r.term}</div>`;
 
+  // AI confidence badge
+  if (ai && ai.confidence) {
+    html += `<div class="ai-conf-badge ${confClass(ai.confidence)}">${ai.confidence.toUpperCase()} CONFIDENCE</div>`;
+  }
+
+  // Scores grid
+  html += `
     <div class="scores-grid">
       <div class="score-cell">
         <div class="score-cell-label">Overall</div>
@@ -156,8 +200,55 @@ function openDetail(idx) {
         <div class="score-cell-label">Recency</div>
         <div class="score-cell-val ${scoreClass(r.recency_score)}">${Math.round(r.recency_score ?? 0)}</div>
       </div>
-    </div>
+    </div>`;
 
+  // AI Briefing
+  if (ai && ai.full_briefing) {
+    html += `
+      <div class="detail-section ai-brief-section">
+        <div class="detail-section-title">AI Analysis</div>
+        <div class="ai-brief">${ai.full_briefing.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
+      </div>`;
+  }
+
+  // Buying intent signals
+  if (ai && ai.buying_intent && ai.buying_intent.length > 0) {
+    html += `
+      <div class="detail-section">
+        <div class="detail-section-title">Buying Intent Signals</div>
+        <div class="tag-row">${ai.buying_intent.map(s => `<span class="intent-tag">${s}</span>`).join('')}</div>
+      </div>`;
+  }
+
+  // Monetization angles
+  if (ai && ai.monetization && ai.monetization.length > 0) {
+    html += `
+      <div class="detail-section">
+        <div class="detail-section-title">Monetization Angles</div>
+        <div class="tag-row">${ai.monetization.map(s => `<span class="money-tag">${s}</span>`).join('')}</div>
+      </div>`;
+  }
+
+  // Risks
+  if (ai && ai.risks && ai.risks.length > 0) {
+    html += `
+      <div class="detail-section">
+        <div class="detail-section-title">Risks</div>
+        <div class="tag-row">${ai.risks.map(s => `<span class="risk-tag">${s}</span>`).join('')}</div>
+      </div>`;
+  }
+
+  // Action plan
+  if (ai && ai.action_plan && ai.action_plan.length > 0) {
+    html += `
+      <div class="detail-section">
+        <div class="detail-section-title">Action Plan</div>
+        <div class="action-list">${ai.action_plan.map((s, i) => `<div class="action-item"><span class="action-num">${i+1}</span>${s}</div>`).join('')}</div>
+      </div>`;
+  }
+
+  // Raw metrics
+  html += `
     <div class="detail-section">
       <div class="detail-section-title">Metrics</div>
       <div class="detail-row"><span>Videos (30 days)</span><span>${r.videos_last_30d ?? 0}</span></div>
@@ -166,27 +257,22 @@ function openDetail(idx) {
       <div class="detail-row"><span>Avg channel subs</span><span>${(r.avg_channel_subs ?? 0).toLocaleString(undefined, {maximumFractionDigits:0})}</span></div>
       <div class="detail-row"><span>View / sub ratio</span><span style="color:${(r.view_to_sub_ratio??0)>=5?'#22c55e':'inherit'};font-weight:700">${(r.view_to_sub_ratio ?? 0).toFixed(1)}x</span></div>
       <div class="detail-row"><span>Small channels</span><span>${(r.small_channels_pct ?? 0).toFixed(0)}%</span></div>
-      <div class="detail-row"><span>Total search results</span><span>${(r.total_results ?? 0).toLocaleString()}</span></div>
-    </div>
+    </div>`;
 
-    ${r.best_video_title ? `
-    <div class="detail-section">
-      <div class="detail-section-title">Best Performing Video</div>
-      <div class="best-video-card">
-        <div class="best-video-title">${r.best_video_title}</div>
-        <div class="best-video-meta">
-          ${(r.best_video_views ?? 0).toLocaleString()} views
-          · ${(r.best_video_channel_subs ?? 0).toLocaleString()} subs on channel
+  if (r.best_video_title) {
+    html += `
+      <div class="detail-section">
+        <div class="detail-section-title">Best Video</div>
+        <div class="best-video-card">
+          <div class="best-video-title">${r.best_video_title}</div>
+          <div class="best-video-meta">${(r.best_video_views ?? 0).toLocaleString()} views · ${(r.best_video_channel_subs ?? 0).toLocaleString()} subs</div>
         </div>
-      </div>
-    </div>` : ''}
+      </div>`;
+  }
 
-    ${pathChips ? `
-    <div class="detail-section">
-      <div class="detail-section-title">Discovery Path</div>
-      <div>${pathChips}</div>
-    </div>` : ''}
-  `;
+  if (pathChips) {
+    html += `<div class="detail-section"><div class="detail-section-title">Discovery Path</div><div>${pathChips}</div></div>`;
+  }
 
   document.getElementById('drawerContent').innerHTML = html;
   document.getElementById('drawer').classList.add('open');

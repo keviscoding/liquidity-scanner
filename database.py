@@ -63,6 +63,53 @@ def init_db():
                 pct         INTEGER DEFAULT 0,
                 created_at  TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS ai_analyses (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                scan_id             INTEGER NOT NULL REFERENCES scans(id),
+                term                TEXT NOT NULL,
+                confidence          TEXT,
+                quick_rating        INTEGER,
+                quick_reason        TEXT,
+                opportunity_type    TEXT,
+                buying_intent       TEXT,
+                competition_summary TEXT,
+                timing              TEXT,
+                monetization        TEXT,
+                risks               TEXT,
+                action_plan         TEXT,
+                full_briefing       TEXT,
+                model_used          TEXT,
+                tokens_used         INTEGER,
+                analyzed_at         TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_sessions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                scan_id         INTEGER REFERENCES scans(id),
+                direction       TEXT NOT NULL,
+                max_iterations  INTEGER,
+                steps           TEXT,
+                candidates_found INTEGER DEFAULT 0,
+                status          TEXT DEFAULT 'running',
+                started_at      TEXT,
+                finished_at     TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS trend_snapshots (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                term            TEXT NOT NULL,
+                scan_id         INTEGER REFERENCES scans(id),
+                overall_score   REAL,
+                videos_30d      INTEGER,
+                avg_views       REAL,
+                avg_subs        REAL,
+                ai_confidence   TEXT,
+                snapshot_at     TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_trend_term ON trend_snapshots(term);
+            CREATE INDEX IF NOT EXISTS idx_ai_scan ON ai_analyses(scan_id);
         """)
 
 
@@ -162,4 +209,123 @@ def get_progress(scan_id: int, since_id: int = 0) -> list[dict]:
             "SELECT * FROM scan_progress WHERE scan_id=? AND id>? ORDER BY id",
             (scan_id, since_id),
         ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# --- AI Analyses ---
+
+def save_ai_analyses(scan_id: int, analyses):
+    import json as _json
+    with get_conn() as conn:
+        conn.execute("DELETE FROM ai_analyses WHERE scan_id=?", (scan_id,))
+        for a in analyses:
+            conn.execute("""
+                INSERT INTO ai_analyses (
+                    scan_id, term, confidence, quick_rating, quick_reason,
+                    opportunity_type, buying_intent, competition_summary,
+                    timing, monetization, risks, action_plan,
+                    full_briefing, model_used, tokens_used, analyzed_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                scan_id, a.term, a.confidence, a.quick_rating, a.quick_reason,
+                a.opportunity_type,
+                _json.dumps(a.buying_intent_signals),
+                a.competition_summary,
+                a.timing,
+                _json.dumps(a.monetization_angles),
+                _json.dumps(a.risks),
+                _json.dumps(a.action_plan),
+                a.full_briefing,
+                a.model_used, a.tokens_used,
+                a.analyzed_at.isoformat() if hasattr(a.analyzed_at, 'isoformat') else str(a.analyzed_at),
+            ))
+
+
+def get_ai_analyses(scan_id: int) -> list[dict]:
+    import json as _json
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM ai_analyses WHERE scan_id=? ORDER BY "
+            "CASE confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END, "
+            "quick_rating DESC",
+            (scan_id,),
+        ).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            for key in ("buying_intent", "monetization", "risks", "action_plan"):
+                try:
+                    d[key] = _json.loads(d[key]) if d[key] else []
+                except (ValueError, TypeError):
+                    d[key] = []
+            result.append(d)
+        return result
+
+
+# --- Agent Sessions ---
+
+def save_agent_session(scan_id: int, direction: str, steps: list, candidates_found: int, status: str = "completed"):
+    import json as _json
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO agent_sessions (scan_id, direction, max_iterations, steps, candidates_found, status, started_at, finished_at)
+            VALUES (?,?,?,?,?,?,?,?)
+        """, (
+            scan_id, direction, len(steps),
+            _json.dumps([{"step": s.step_number, "action": s.action, "reasoning": s.reasoning,
+                          "query": s.query, "findings": s.findings[:500]} for s in steps]),
+            candidates_found, status,
+            steps[0].timestamp.isoformat() if steps else None,
+            steps[-1].timestamp.isoformat() if steps else None,
+        ))
+
+
+def get_agent_session(scan_id: int) -> dict | None:
+    import json as _json
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM agent_sessions WHERE scan_id=? ORDER BY id DESC LIMIT 1", (scan_id,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["steps"] = _json.loads(d["steps"]) if d["steps"] else []
+        except (ValueError, TypeError):
+            d["steps"] = []
+        return d
+
+
+# --- Trend Snapshots ---
+
+def save_trend_snapshot(scan_id: int, term: str, overall_score: float, videos_30d: int,
+                        avg_views: float, avg_subs: float, ai_confidence: str = ""):
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO trend_snapshots (term, scan_id, overall_score, videos_30d, avg_views, avg_subs, ai_confidence, snapshot_at)
+            VALUES (?,?,?,?,?,?,?,?)
+        """, (term, scan_id, overall_score, videos_30d, avg_views, avg_subs, ai_confidence,
+              datetime.utcnow().isoformat()))
+
+
+def get_trend_history(term: str, limit: int = 20) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM trend_snapshots WHERE term=? ORDER BY snapshot_at DESC LIMIT ?",
+            (term, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_all_trends(min_snapshots: int = 2) -> list[dict]:
+    """Get terms with multiple snapshots for trend analysis."""
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT term, COUNT(*) as snapshot_count,
+                   MAX(overall_score) as peak_score,
+                   MIN(snapshot_at) as first_seen,
+                   MAX(snapshot_at) as last_seen
+            FROM trend_snapshots
+            GROUP BY term
+            HAVING COUNT(*) >= ?
+            ORDER BY peak_score DESC
+        """, (min_snapshots,)).fetchall()
         return [dict(r) for r in rows]

@@ -443,6 +443,100 @@ input, select { font-family: inherit; }
 .empty-icon { font-size: 40px; color: var(--text3); margin-bottom: 12px; }
 .error-card { margin: 24px 32px 0; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius); padding: 16px 20px; color: var(--red); font-size: 13px; }
 
+/* ── Scan Type Selector ───────────────────────────────────────────────────── */
+.scan-type-row { display: flex; gap: 8px; }
+.scan-type-option {
+  flex: 1;
+  background: var(--bg3);
+  border: 2px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  text-align: center;
+}
+.scan-type-option:hover { border-color: var(--text3); }
+.scan-type-option.selected { border-color: var(--accent); background: rgba(108,99,255,0.08); }
+.scan-type-option input { display: none; }
+.scan-type-label { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+.scan-type-desc { font-size: 11px; color: var(--text3); }
+
+/* ── AI Confidence Badges ─────────────────────────────────────────────────── */
+.conf-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.conf-high   { background: rgba(34,197,94,0.15); color: var(--green); }
+.conf-medium { background: rgba(234,179,8,0.15); color: var(--yellow); }
+.conf-low    { background: rgba(239,68,68,0.1);  color: var(--red); }
+.conf-none   { background: var(--bg3); color: var(--text3); }
+
+.ai-conf-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+.ai-conf-badge.conf-high   { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
+.ai-conf-badge.conf-medium { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.3); color: var(--yellow); }
+.ai-conf-badge.conf-low    { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: var(--red); }
+
+/* ── AI Brief ─────────────────────────────────────────────────────────────── */
+.ai-brief-section { margin-bottom: 24px; }
+.ai-brief {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+}
+.ai-brief strong { color: var(--accent2); }
+
+/* ── Tags ─────────────────────────────────────────────────────────────────── */
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.intent-tag, .money-tag, .risk-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.intent-tag { background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.25); color: var(--cyan); }
+.money-tag  { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: var(--green); }
+.risk-tag   { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: var(--red); }
+
+/* ── Action Plan ──────────────────────────────────────────────────────────── */
+.action-list { display: flex; flex-direction: column; gap: 8px; }
+.action-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.action-num {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

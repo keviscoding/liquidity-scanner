@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -93,3 +93,45 @@ class NicheScore:
     parent_chain: list[str] = field(default_factory=list)
     searched_at: datetime = field(default_factory=datetime.now)
     quota_cost: int = 0
+
+
+@dataclass
+class AIAnalysis:
+    term: str
+    confidence: str = "unknown"  # high, medium, low, unknown
+    quick_rating: int = 0  # 1-5 from pass 1
+    quick_reason: str = ""
+    opportunity_type: str = ""
+    buying_intent_signals: list[str] = field(default_factory=list)
+    competition_summary: str = ""
+    timing: str = "unknown"  # emerging, growing, peaking, stable, declining
+    monetization_angles: list[str] = field(default_factory=list)
+    risks: list[str] = field(default_factory=list)
+    action_plan: list[str] = field(default_factory=list)
+    full_briefing: str = ""
+    model_used: str = ""
+    tokens_used: int = 0
+    analyzed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class AgentStep:
+    step_number: int
+    action: str  # explore_autocomplete, search_youtube, go_deeper, pivot, done
+    reasoning: str
+    query: str = ""
+    findings: str = ""
+    next_direction: str = ""
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class TrendSnapshot:
+    term: str
+    scan_id: int
+    overall_score: float = 0.0
+    videos_30d: int = 0
+    avg_views: float = 0.0
+    avg_subs: float = 0.0
+    ai_confidence: str = ""
+    snapshot_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

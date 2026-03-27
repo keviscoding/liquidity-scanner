@@ -62,20 +62,6 @@ async def index():
     })
 
 
-@app.get("/scan/{scan_id}", response_class=HTMLResponse)
-async def scan_page(scan_id: int):
-    scan = db.get_scan(scan_id)
-    if not scan:
-        raise HTTPException(404, "Scan not found")
-    results = db.get_results(scan_id)
-    config = json.loads(scan.get("config", "{}"))
-    return render("scan.html", {
-        "scan": scan,
-        "results": results,
-        "config": config,
-        "is_running": jobs.is_running(scan_id),
-    })
-
 
 # ── API ───────────────────────────────────────────────────────────────────────
 
@@ -85,17 +71,23 @@ class StartScanRequest(BaseModel):
     max_seeds: int = 25
     max_depth: int = 3
     extra_seeds: list[str] = []
+    scan_type: str = "standard"  # standard, agent, rescan
+    agent_direction: str = ""
+    agent_max_iterations: int = 8
+    agent_max_youtube: int = 5
 
 
 @app.post("/api/scans")
 async def start_scan(req: StartScanRequest):
-    if not req.dry_run and not YOUTUBE_API_KEY:
+    if req.scan_type == "agent" and not req.agent_direction:
+        raise HTTPException(400, "Agent mode requires a direction")
+    if not req.dry_run and req.scan_type != "rescan" and not YOUTUBE_API_KEY:
         raise HTTPException(400, "No YouTube API key configured")
     if not req.dry_run and not quota_tracker.can_afford(200):
         raise HTTPException(400, f"Insufficient quota: {quota_tracker.get_remaining_quota()} units left")
 
     config = req.model_dump()
-    mode = "dry_run" if req.dry_run else "full"
+    mode = "dry_run" if req.dry_run else req.scan_type
     scan_id = db.create_scan(config, mode=mode)
     jobs.start_scan(scan_id, config)
     return {"scan_id": scan_id, "status": "started"}
@@ -181,3 +173,58 @@ async def export_results(scan_id: int):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=scan_{scan_id}_results.csv"},
     )
+
+
+# ── AI / Agent / Trends Routes ────────────────────────────────────────────────
+
+@app.get("/api/scans/{scan_id}/ai")
+async def get_ai_analyses(scan_id: int):
+    return db.get_ai_analyses(scan_id)
+
+
+@app.get("/api/scans/{scan_id}/agent-log")
+async def get_agent_log(scan_id: int):
+    session = db.get_agent_session(scan_id)
+    if not session:
+        return {"steps": [], "direction": "", "status": "none"}
+    return session
+
+
+@app.get("/api/trends")
+async def get_trends():
+    from trend_tracker import detect_risers, detect_newcomers
+    trends = db.get_all_trends()
+    risers = detect_risers()
+    return {"trends": trends, "risers": risers}
+
+
+@app.get("/api/trends/{term}")
+async def get_trend_detail(term: str):
+    history = db.get_trend_history(term)
+    return {"term": term, "history": history}
+
+
+@app.get("/scan/{scan_id}", response_class=HTMLResponse)
+async def scan_page(scan_id: int):
+    scan = db.get_scan(scan_id)
+    if not scan:
+        raise HTTPException(404, "Scan not found")
+    results = db.get_results(scan_id)
+    config = json.loads(scan.get("config", "{}"))
+    ai_analyses = db.get_ai_analyses(scan_id)
+    agent_session = db.get_agent_session(scan_id)
+
+    # Build AI lookup by term
+    ai_map = {}
+    for a in ai_analyses:
+        ai_map[a["term"].lower()] = a
+
+    return render("scan.html", {
+        "scan": scan,
+        "results": results,
+        "config": config,
+        "is_running": jobs.is_running(scan_id),
+        "ai_analyses": ai_analyses,
+        "ai_map": ai_map,
+        "agent_session": agent_session,
+    })

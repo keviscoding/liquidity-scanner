@@ -70,9 +70,9 @@
             <input type="text" id="filterInput" class="form-input small" placeholder="Filter niches..." oninput="filterTable()"/>
             <select id="sortSelect" class="form-select" onchange="sortTable()">
               <option value="overall">Sort: Overall</option>
+              <option value="confidence">Sort: AI Confidence</option>
               <option value="liquidity">Sort: Liquidity</option>
               <option value="velocity">Sort: Velocity</option>
-              <option value="recency">Sort: Recency</option>
               <option value="views">Sort: Avg Views</option>
             </select>
           </div>
@@ -84,10 +84,10 @@
               <tr>
                 <th>#</th>
                 <th>Search Term</th>
+                <th>AI</th>
                 <th>Score</th>
                 <th>Liquidity</th>
                 <th>Velocity</th>
-                <th>Recency</th>
                 <th>Avg Views</th>
                 <th>Avg Subs</th>
                 <th>V/S Ratio</th>
@@ -96,19 +96,21 @@
             </thead>
             <tbody id="tableBody">
               {% for r in results %}
+              {% set ai = ai_map.get(r.term | lower, {}) %}
               <tr class="result-row" onclick="openDetail({{ loop.index0 }})"
                   data-term="{{ r.term }}"
                   data-overall="{{ r.overall_score }}"
                   data-liquidity="{{ r.liquidity_score }}"
                   data-velocity="{{ r.velocity_score }}"
                   data-recency="{{ r.recency_score }}"
-                  data-views="{{ r.avg_views }}">
+                  data-views="{{ r.avg_views }}"
+                  data-confidence="{{ ai.get('confidence', '') }}">
                 <td class="rank-cell">{{ r.rank }}</td>
                 <td class="term-cell">{{ r.term }}</td>
+                <td>{% if ai.get('confidence') %}<span class="conf-badge conf-{{ ai.confidence }}">{{ ai.confidence[:3] | upper }}</span>{% else %}<span class="conf-badge conf-none">—</span>{% endif %}</td>
                 <td><span class="score-badge {{ r.overall_score | score_class }}">{{ r.overall_score }}</span></td>
                 <td><span class="score-badge {{ r.liquidity_score | score_class }}">{{ r.liquidity_score | int }}</span></td>
                 <td><span class="score-badge {{ r.velocity_score | score_class }}">{{ r.velocity_score | int }}</span></td>
-                <td><span class="score-badge {{ r.recency_score | score_class }}">{{ r.recency_score | int }}</span></td>
                 <td>{{ "{:,.0f}".format(r.avg_views or 0) }}</td>
                 <td>{{ "{:,.0f}".format(r.avg_channel_subs or 0) }}</td>
                 <td class="{% if (r.view_to_sub_ratio or 0) >= 5 %}highlight{% endif %}">{{ "%.1f"|format(r.view_to_sub_ratio or 0) }}x</td>
@@ -144,6 +146,7 @@
 
   <script>
     const results = {{ results | tojson }};
+    const aiAnalyses = {{ ai_analyses | tojson }};
   </script>
   <script src="/static/app.js"></script>
   {% if is_running or scan.status == 'running' %}

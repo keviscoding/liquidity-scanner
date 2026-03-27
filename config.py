@@ -11,6 +11,13 @@ load_dotenv(BASE_DIR / ".env")
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 
+# LLM (Claude) settings
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_MODEL_FAST = os.getenv("LLM_MODEL_FAST", "claude-sonnet-4-20250514")
+LLM_MODEL_DEEP = os.getenv("LLM_MODEL_DEEP", "claude-sonnet-4-20250514")
+LLM_MAX_CONCURRENT = int(os.getenv("LLM_MAX_CONCURRENT", "5"))
+AI_SCORING_ENABLED = os.getenv("AI_SCORING_ENABLED", "true").lower() == "true"
+
 DAILY_QUOTA_LIMIT = 10_000
 SEARCH_QUOTA_COST = 100
 MAX_SEARCHES_PER_RUN = 50
