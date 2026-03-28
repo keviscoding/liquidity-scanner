@@ -162,18 +162,36 @@ class AutonomousAgent:
 
     async def run(self) -> list[CandidateNiche]:
         """Run the autonomous exploration loop."""
+        consecutive_errors = 0
+
         for step_num in range(1, self.max_steps + 1):
             try:
                 decision = await self.llm.complete_json(
                     self._build_system_prompt(),
                     self._build_decide_prompt()
                 )
+                consecutive_errors = 0
             except Exception as e:
+                consecutive_errors += 1
                 self._log(step_num, "error", f"LLM error: {e}", "", str(e))
+                self.history.append(f"[ERROR] LLM call failed: {str(e)[:100]}")
+                if consecutive_errors >= 3:
+                    self._log(step_num, "abort", "Too many consecutive LLM errors", "", "")
+                    break
+                continue
+
+            if not isinstance(decision, dict):
+                self._log(step_num, "error", f"LLM returned non-dict: {type(decision)}", "", str(decision)[:200])
                 continue
 
             tool_name = decision.get("tool", "done")
-            args = decision.get("args", {})
+            args = decision.get("args") or {}
+            if isinstance(args, str):
+                # Claude sometimes returns args as a string instead of dict
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {"query": args}
             thinking = decision.get("thinking", "")
             area = decision.get("area", "unknown")
 
@@ -185,23 +203,10 @@ class AutonomousAgent:
                 break
 
             if tool_name == "flag_niche":
-                term = args.get("term", "")
-                reason = args.get("reason", "")
+                term = args.get("term", "") or args.get("query", "") or args.get("niche", "")
+                reason = args.get("reason", "") or args.get("reasoning", "") or thinking
                 if term:
-                    niche = CandidateNiche(
-                        term=term.lower().strip(),
-                        depth=0,
-                        word_count=len(term.split()),
-                        autocomplete_branch_count=0,
-                        parent_chain=[f"agent:{area}", term.lower().strip()],
-                    )
-                    self.flagged_niches.append(niche)
-                    self.history.append(f"[FLAG] Flagged niche: '{term}' — {reason}")
-                    self._log(step_num, "flag_niche", thinking, term, reason)
-                    self._last_result = f"Flagged '{term}' as promising niche. Total flagged: {len(self.flagged_niches)}"
-
-                    if self.on_niche_found:
-                        self.on_niche_found(niche)
+                    self._flag(term, reason, area, step_num, thinking)
                 continue
 
             # Execute the tool
@@ -212,6 +217,11 @@ class AutonomousAgent:
             self._last_result = json.dumps(result, indent=2, default=str)[:3000]
 
             self._log(step_num, tool_name, thinking, json.dumps(args), result_summary)
+
+            # AUTO-FLAG: If autocomplete/alphabet_expand found a high-demand specific term,
+            # automatically flag promising candidates
+            if tool_name in ("autocomplete", "alphabet_expand") and "error" not in result:
+                self._auto_flag_from_suggestions(result, area, step_num)
 
         return self.flagged_niches
 
@@ -269,6 +279,45 @@ class AutonomousAgent:
             return summary
 
         return json.dumps(result, default=str)[:300]
+
+    def _flag(self, term: str, reason: str, area: str, step_num: int, thinking: str):
+        """Flag a niche for scoring."""
+        term = term.lower().strip()
+        # Don't double-flag
+        if any(n.term == term for n in self.flagged_niches):
+            return
+        niche = CandidateNiche(
+            term=term,
+            depth=0,
+            word_count=len(term.split()),
+            autocomplete_branch_count=0,
+            parent_chain=[f"agent:{area}", term],
+        )
+        self.flagged_niches.append(niche)
+        self.history.append(f"[FLAG] Flagged niche: '{term}' — {reason}")
+        self._log(step_num, "flag_niche", thinking, term, reason)
+        self._last_result = f"Flagged '{term}' as promising niche. Total flagged: {len(self.flagged_niches)}"
+        if self.on_niche_found:
+            self.on_niche_found(niche)
+
+    def _auto_flag_from_suggestions(self, result: dict, area: str, step_num: int):
+        """Auto-flag specific multi-word suggestions from autocomplete that look promising."""
+        suggestions = result.get("suggestions", [])
+        for s in suggestions:
+            words = s.lower().split()
+            word_count = len(words)
+            # Flag terms that are 3-6 words (specific enough) and contain intent signals
+            if word_count < 3 or word_count > 7:
+                continue
+            s_lower = s.lower()
+            has_intent = any(w in s_lower for w in [
+                "best", "how to", "setup", "settings", "script", "template",
+                "preset", "fix", "mod", "hack", "guide", "tutorial", "review",
+                "alternative", "free", "app for", "tool for", "not working",
+                "vs", "cheap", "budget", "config", "build", "loadout",
+            ])
+            if has_intent:
+                self._flag(s, f"Auto-flagged: specific intent term from autocomplete ({area})", area, step_num, "Auto-flag")
 
     def _log(self, step: int, action: str, reasoning: str, query: str, findings: str):
         step_obj = AgentStep(

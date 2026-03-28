@@ -371,11 +371,44 @@ TOOL_MAP = {
 
 
 def execute_tool(tool_name: str, args: dict) -> dict:
-    """Execute a browsing tool by name with the given arguments."""
+    """Execute a browsing tool by name with the given arguments.
+    Handles argument normalization since Claude might use different names."""
     fn = TOOL_MAP.get(tool_name)
     if not fn:
-        return {"error": f"Unknown tool: {tool_name}"}
+        return {"error": f"Unknown tool: {tool_name}. Available: {', '.join(TOOL_MAP.keys())}"}
+
+    # Normalize common argument variations
+    normalized = {}
+    for k, v in args.items():
+        k_lower = k.lower().strip()
+        # Map common variations to expected parameter names
+        if k_lower in ("q", "query", "search_query", "term", "search_term", "keyword"):
+            normalized["query"] = v
+        elif k_lower in ("video_id", "videoid", "vid_id", "id"):
+            normalized["video_id"] = v
+        elif k_lower in ("video_ids", "videoids", "vid_ids", "ids"):
+            normalized["video_ids"] = v if isinstance(v, list) else [v]
+        elif k_lower in ("channel_ids", "channelids", "channels"):
+            normalized["channel_ids"] = v if isinstance(v, list) else [v]
+        elif k_lower in ("category", "cat", "category_id"):
+            normalized["category"] = str(v)
+        elif k_lower in ("region", "country"):
+            normalized["region"] = v
+        elif k_lower in ("max_results", "limit", "count"):
+            normalized["max_results"] = int(v)
+        else:
+            normalized[k] = v
+
     try:
-        return fn(**args)
+        return fn(**normalized)
+    except TypeError as e:
+        # If argument mismatch, try with just the first positional arg
+        if normalized:
+            first_val = list(normalized.values())[0]
+            try:
+                return fn(first_val)
+            except Exception:
+                pass
+        return {"error": f"Tool argument error for {tool_name}: {str(e)[:200]}. Args received: {normalized}"}
     except Exception as e:
-        return {"error": f"Tool error: {str(e)[:200]}"}
+        return {"error": f"Tool error in {tool_name}: {str(e)[:200]}"}
