@@ -42,38 +42,41 @@ WHY this worked — the structure:
 
 The niche MUST have a clear PRODUCT someone could sell. Ask yourself: "What would someone pay $20-100 for in this niche?"
 
-GOOD niches (have a sellable product):
-- "obs stream overlay template" → sell premium overlays
-- "capcut template pack viral" → sell template packs
-- "shopify theme customization" → sell custom themes or a course
-- "midjourney prompt pack" → sell prompt collections
-- "cricut svg files free" → sell premium SVG bundles
-- "fl studio drum kit" → sell drum kits/sample packs
-- "notion budget template" → sell premium templates
-- "cronus zen script nba 2k26" → sell scripts
+GOOD niches — the person would PAY $20-100 for a solution:
+- "roblox blox fruits script no key" → sell scripts (EXACT Cronus Zen pattern)
+- "fortnite macro controller ps5" → sell macro configs
+- "lightroom preset pack free download" → sell premium preset packs
+- "obs stream overlay template" → sell overlay packs
+- "capcut template pack viral reels" → sell template packs
+- "midjourney prompt pack portrait" → sell prompt collections
+- "fl studio drum kit 2026" → sell sample packs
+- "shopify theme customization" → sell themes or customization service
 - "tinder ai photo generator" → sell AI photo service
+- "cricut svg files wedding" → sell SVG bundles
 
-BAD niches (nothing to sell, just general knowledge):
-- "how to use chopsticks" → free knowledge, no product
-- "how to tie a tie" → everyone knows, no product
-- "how to use a can opener" → trivially simple, no product
-- "how to use ratchet straps" → basic DIY, no product
-- "best pokemon vgc teams" → just entertainment/info
-- "how to use blender" → way too broad
-- "home assistant setup beginner" → just a tutorial, no clear product
+Notice the PATTERN: every good niche has someone who wants a SPECIFIC DIGITAL SHORTCUT to get a result they can't easily get on their own. They want an unfair advantage, a time-saver, or a creative asset they can't make themselves.
 
-The key difference: GOOD niches involve a specific DIGITAL PRODUCT or SERVICE that solves a specific problem for a specific audience. BAD niches are just general "how to" information that's freely available everywhere.
+BAD niches — freely available general knowledge, nothing to sell:
+- "how to use chopsticks" → trivially simple
+- "how to tie a tie" → free knowledge
+- "best laptop for students" → just product reviews
+- "home assistant setup beginner" → generic tutorial
+- "how to use chatgpt" → too broad, free tool
 
-## WHAT TO LOOK FOR IN AUTOCOMPLETE
+The REAL test: if someone watches a video on this topic, would they click a link in the description and spend money? If the answer is "no, they just wanted free info" — it's a bad niche.
 
-When you explore autocomplete, look for terms that suggest people want something SPECIFIC and PURCHASABLE:
-- "[product] template" / "[product] preset" / "[product] script" / "[product] pack"
-- "[product] settings for [specific thing]" (configurations people pay for)
-- "[product] alternative free" (they want something but can't afford the paid version — you can sell a cheaper one)
-- "[product] not working" / "[product] fix" (frustration = buying intent if a solution exists)
-- "[tool] for [specific profession/hobby]" (specialized = willing to pay)
+## HOW TO EXPLORE
 
-DO NOT flag terms that are just "how to use [common item]" or "best [broad category]". Those are NOT micro-niches. They're basic queries with zero buying intent.
+Think about ECOSYSTEMS, not keywords. Every popular platform/game/tool has an ecosystem of people who want shortcuts:
+- Games → scripts, macros, configs, hacks, bots
+- Creative software → presets, templates, packs, assets, LUTs, brushes
+- Business tools → templates, automations, workflows, integrations
+- Personal improvement → courses, coaching, transformation services
+- Hardware/devices → settings, configurations, mods, accessories
+
+When autocomplete shows many specific variations of a theme (like "fortnite macro controller" showing pickup/prefire/edit/drag edit variations), that's an ADDICTION LOOP — the same audience keeps searching for more. That's gold.
+
+Also watch for the word "free" or "download" in autocomplete — that means people KNOW this is normally a PAID product. They're trying to get it free, which proves the market exists.
 
 ## HOW TO EXPLORE
 
@@ -327,38 +330,32 @@ class AutonomousAgent:
             self.on_niche_found(niche)
 
     def _auto_flag_from_suggestions(self, result: dict, area: str, step_num: int):
-        """Auto-flag suggestions that indicate a SELLABLE PRODUCT exists.
-        Very selective — only flag terms where there's clearly something to sell."""
+        """Collect specific multi-word suggestions as candidates for scoring.
+        Uses loose filtering — the YouTube API scoring will validate properly.
+        We want to cast a wide net here, not be picky."""
         suggestions = result.get("suggestions", [])
         for s in suggestions:
             words = s.lower().split()
             word_count = len(words)
+            # Only flag 3-7 word terms (specific enough to be a micro-niche)
             if word_count < 3 or word_count > 7:
                 continue
+
             s_lower = s.lower()
 
-            # MUST contain a product/digital-goods indicator
-            has_product_signal = any(w in s_lower for w in [
-                "template", "preset", "script", "pack", "kit", "bundle",
-                "plugin", "extension", "mod", "theme", "overlay", "svg",
-                "font", "lut", "brush", "sample", "drum kit", "sound pack",
-                "prompt", "workflow", "automation", "bot", "macro",
-                "config", "loadout", "settings for",
+            # Skip obviously generic/useless queries
+            skip = any(g in s_lower for g in [
+                "what is", "who is", "when is", "where is",
+                "meaning of", "definition of", "history of",
+                "funny", "meme", "compilation", "reaction",
+                "full movie", "full episode", "trailer",
+                "news today", "live stream",
             ])
-
-            if not has_product_signal:
+            if skip:
                 continue
 
-            # MUST NOT be too generic
-            too_generic = any(g in s_lower for g in [
-                "how to use", "what is", "how does", "tutorial for beginners",
-                "for dummies", "explained",
-            ])
-
-            if too_generic:
-                continue
-
-            self._flag(s, f"Auto-flagged: product-signal term ({area})", area, step_num, "Auto-flag")
+            # Flag it — let the AI + scoring pipeline decide if it's good
+            self._flag(s, f"Candidate from autocomplete ({area})", area, step_num, "Auto-collect")
 
     def _log(self, step: int, action: str, reasoning: str, query: str, findings: str):
         step_obj = AgentStep(
