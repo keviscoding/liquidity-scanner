@@ -9,7 +9,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCo
 from models import CandidateNiche
 from config import (
     AUTOCOMPLETE_DELAY, AUTOCOMPLETE_MAX_DEPTH, MIN_WORD_COUNT_FOR_CANDIDATE,
-    HIGH_INTENT_PREFIXES, EVERGREEN_SEEDS, MONETIZABLE_KEYWORDS,
+    ALL_INTENT_TEMPLATES, EVERGREEN_SEEDS, MONETIZABLE_KEYWORDS, URGENCY_WORDS,
 )
 from cache import cache_get, cache_set
 
@@ -65,10 +65,52 @@ def expand_with_alphabet(seed: str, progress=None, task_id=None) -> list[str]:
 
 
 def discover_seed_niches(verbose: bool = False) -> list[str]:
-    """Discover seed niches autonomously. Combines trending data, autocomplete, and hardcoded seeds."""
-    seeds = set()
+    """Discover seed niches using INTENT TEMPLATES as primary mechanism.
 
-    # Layer 1: Try pytrends for trending searches
+    Instead of seeding by topic, we seed by intent pattern. Each intent template
+    is domain-agnostic — "best script for" naturally discovers gaming scripts,
+    productivity macros, music presets, etc. The MARKET fills in the domains.
+    """
+    seeds = set()
+    intent_categories_hit = set()
+
+    # Layer 1 (PRIMARY): Intent templates — domain-agnostic buyer-intent patterns
+    # These are the main fishing nets. Each template naturally crosses domains.
+    console.print("[cyan]Discovering seeds from intent templates (domain-agnostic)...[/cyan]")
+
+    # Randomly sample templates from each category for diversity
+    # (don't run ALL of them every time — be spontaneous)
+    templates_to_run = []
+    from config import INTENT_TEMPLATES
+    for category, template_list in INTENT_TEMPLATES.items():
+        # Take 3-5 random templates from each category
+        sample_size = min(len(template_list), random.randint(3, 5))
+        sampled = random.sample(template_list, sample_size)
+        for t in sampled:
+            templates_to_run.append((t, category))
+
+    random.shuffle(templates_to_run)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Intent template scanning", total=len(templates_to_run))
+        for template, category in templates_to_run:
+            suggestions = fetch_autocomplete(template)
+            for s in suggestions:
+                seeds.add(s.lower().strip())
+            intent_categories_hit.add(category)
+            progress.advance(task)
+            _polite_delay()
+
+    if verbose:
+        console.print(f"  [dim]Intent categories covered: {', '.join(intent_categories_hit)}[/dim]")
+
+    # Layer 2: Try pytrends for trending searches (supplementary)
     try:
         from pytrends.request import TrendReq
         pytrends = TrendReq(hl="en-US", tz=360)
@@ -77,35 +119,15 @@ def discover_seed_niches(verbose: bool = False) -> list[str]:
             term_lower = term.lower()
             if any(kw in term_lower for kw in MONETIZABLE_KEYWORDS):
                 seeds.add(term_lower)
-                if verbose:
-                    console.print(f"  [dim]Trending seed: {term_lower}[/dim]")
-    except Exception as e:
-        if verbose:
-            console.print(f"  [yellow]pytrends unavailable: {e}[/yellow]")
+    except Exception:
+        pass
 
-    # Layer 2: YouTube autocomplete on high-intent prefixes
-    console.print("[cyan]Discovering seeds from high-intent prefixes...[/cyan]")
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Autocomplete prefixes", total=len(HIGH_INTENT_PREFIXES))
-        for prefix in HIGH_INTENT_PREFIXES:
-            suggestions = fetch_autocomplete(prefix)
-            for s in suggestions:
-                seeds.add(s.lower().strip())
-            progress.advance(task)
-            _polite_delay()
-
-    # Layer 3: Hardcoded evergreen seeds
+    # Layer 3: Supplementary evergreen seeds (kept small — intent templates do the heavy lifting)
     for seed in EVERGREEN_SEEDS:
         seeds.add(seed.lower().strip())
 
     result = sorted(seeds)
-    console.print(f"[green]Discovered {len(result)} seed niches[/green]")
+    console.print(f"[green]Discovered {len(result)} seed niches across {len(intent_categories_hit)} intent categories[/green]")
     return result
 
 

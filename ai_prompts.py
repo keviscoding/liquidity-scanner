@@ -80,9 +80,15 @@ BRIEFING_SYSTEM = """Write a concise opportunity brief for a YouTube micro-niche
 **Confidence:** [HIGH/MEDIUM/LOW]
 [2-3 sentences about the data: how many videos, view patterns, channel sizes, what's notable]
 
+**Business Breakdown:**
+- Audience: [Who is searching for this? Be specific — age, context, motivation]
+- Problem: [What specific frustration or desire drives the search?]
+- Tool/Bridge: [What purchasable thing solves it — script, app, course, service, template?]
+- Desired Outcome: [What does the person want AFTER they buy?]
+- Monetization: [How to make money — be concrete with product ideas and price points]
+
 **Why this works:** [1-2 sentences on why small channels can win here]
-**Buying intent:** [What signals suggest people want to spend money]
-**Monetization:** [Specific ways to make money — be concrete]
+**Buying intent signals:** [What in the data/comments suggests people want to spend money]
 **Risks:** [Main 1-2 threats]
 **Action plan:**
 1. [First concrete step]
@@ -101,7 +107,9 @@ Monetization angles: {monetization}
 Risks: {risks}
 
 Data: {videos_30d} videos in 30d, avg {avg_views} views, avg {avg_subs} subs, {v2s_ratio}x view/sub ratio, {small_pct}% small channels
-Best video: "{best_title}" ({best_views} views, channel has {best_ch_subs} subs)"""
+Best video: "{best_title}" ({best_views} views, channel has {best_ch_subs} subs)
+Buying signal comments found: {buying_signal_count} ({buying_signal_pct}% of comments checked)
+Sample buying comments: {buying_samples}"""
 
 
 # ─── AGENT: Hypothesis generation ────────────────────────────────────────────

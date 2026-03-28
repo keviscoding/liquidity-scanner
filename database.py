@@ -53,6 +53,9 @@ def init_db():
                 best_video_channel_subs INTEGER,
                 top_channels        TEXT,
                 evidence_videos     TEXT,
+                buying_signal_count INTEGER DEFAULT 0,
+                buying_signal_ratio REAL DEFAULT 0.0,
+                buying_signal_samples TEXT,
                 parent_chain        TEXT,
                 scanned_at          TEXT
             );
@@ -171,8 +174,10 @@ def save_results(scan_id: int, scores):
                     total_results, videos_last_30d, avg_views, avg_views_per_day,
                     avg_channel_subs, view_to_sub_ratio, small_channels_pct,
                     best_video_title, best_video_views, best_video_channel_subs,
-                    top_channels, evidence_videos, parent_chain, scanned_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    top_channels, evidence_videos,
+                    buying_signal_count, buying_signal_ratio, buying_signal_samples,
+                    parent_chain, scanned_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 scan_id, i, s.term, s.overall_score, s.liquidity_score,
                 s.velocity_score, s.recency_score, s.competition_score, s.specificity_score,
@@ -183,6 +188,9 @@ def save_results(scan_id: int, scores):
                 s.best_video_channel_subs,
                 " | ".join(s.top_channels) if s.top_channels else "",
                 " | ".join(s.evidence_videos) if s.evidence_videos else "",
+                s.buying_signal_count,
+                s.buying_signal_ratio,
+                " | ".join(s.buying_signal_samples) if s.buying_signal_samples else "",
                 " > ".join(s.parent_chain),
                 s.searched_at.isoformat(),
             ))

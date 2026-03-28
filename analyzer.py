@@ -209,12 +209,66 @@ def fetch_channel_stats(youtube, channel_ids: list[str]) -> list[ChannelData]:
     return channels
 
 
+def fetch_buying_signals(youtube, video_ids: list[str], max_videos: int = 3) -> dict:
+    """Sample comments from top videos to detect buying intent.
+    Returns {"buying_signal_count": int, "sample_comments": list[str], "signal_ratio": float}
+    Costs 1 quota unit per video checked."""
+    from config import BUYING_SIGNAL_PATTERNS
+
+    total_comments = 0
+    buying_comments = 0
+    sample_buying = []
+
+    for vid_id in video_ids[:max_videos]:
+        cache_key = f"comments:{vid_id}"
+        cached = cache_get("comments", cache_key)
+
+        if cached is not None:
+            comments_text = cached
+        else:
+            if not quota_tracker.can_afford(1):
+                break
+            try:
+                resp = youtube.commentThreads().list(
+                    videoId=vid_id,
+                    part="snippet",
+                    maxResults=50,
+                    order="relevance",
+                    textFormat="plainText",
+                ).execute()
+                quota_tracker.record_usage("commentThreads.list", 1, {"videoId": vid_id})
+                comments_text = [
+                    item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+                    for item in resp.get("items", [])
+                ]
+                cache_set("comments", cache_key, comments_text)
+            except Exception:
+                comments_text = []
+                cache_set("comments", cache_key, [])
+
+        for comment in comments_text:
+            total_comments += 1
+            comment_lower = comment.lower()
+            if any(pattern in comment_lower for pattern in BUYING_SIGNAL_PATTERNS):
+                buying_comments += 1
+                if len(sample_buying) < 5:
+                    sample_buying.append(comment[:120])
+
+    return {
+        "buying_signal_count": buying_comments,
+        "total_comments_checked": total_comments,
+        "signal_ratio": buying_comments / max(total_comments, 1),
+        "sample_comments": sample_buying,
+    }
+
+
 def compute_score(
     term: str,
     videos: list[VideoData],
     channels: list[ChannelData],
     total_results: int,
     parent_chain: list[str],
+    buying_signals: dict | None = None,
 ) -> NicheScore:
     """Compute the full NicheScore for a niche."""
     now = datetime.now(timezone.utc)
@@ -304,14 +358,40 @@ def compute_score(
     else:
         specificity = 15
 
+    # --- Urgency / Intent Signal Boost ---
+    from config import URGENCY_WORDS
+    term_lower = term.lower()
+    urgency_hits = sum(1 for w in URGENCY_WORDS if w in term_lower)
+    urgency_boost = min(10, urgency_hits * 3)  # Max +10 points
+
+    # --- Buying Signal Boost (from comments) ---
+    buying_boost = 0
+    buying_signal_count = 0
+    buying_signal_ratio = 0.0
+    if buying_signals:
+        buying_signal_count = buying_signals.get("buying_signal_count", 0)
+        buying_signal_ratio = buying_signals.get("signal_ratio", 0.0)
+        # If 10%+ of comments contain buying signals, that's a strong signal
+        if buying_signal_ratio >= 0.15:
+            buying_boost = 15
+        elif buying_signal_ratio >= 0.10:
+            buying_boost = 10
+        elif buying_signal_ratio >= 0.05:
+            buying_boost = 5
+        elif buying_signal_count >= 3:
+            buying_boost = 3
+
     # --- Composite ---
     overall = (
-        recency * 0.20 +
-        velocity * 0.25 +
-        liquidity * 0.30 +
-        competition * 0.10 +
-        specificity * 0.15
+        recency * 0.16 +
+        velocity * 0.20 +
+        liquidity * 0.28 +
+        competition * 0.08 +
+        specificity * 0.10 +
+        urgency_boost +
+        buying_boost
     )
+    overall = min(100, overall)  # Cap at 100
 
     # Derived stats
     all_views = [v.view_count for v in videos]
@@ -357,6 +437,9 @@ def compute_score(
         best_video_channel_subs=best_ch_subs,
         top_channels=top_channel_urls,
         evidence_videos=evidence_urls,
+        buying_signal_count=buying_signal_count,
+        buying_signal_ratio=round(buying_signal_ratio, 3),
+        buying_signal_samples=buying_signals.get("sample_comments", []) if buying_signals else [],
         videos_analyzed=videos,
         channels_analyzed=channels,
         parent_chain=parent_chain,
@@ -370,7 +453,7 @@ def analyze_niche(youtube, candidate: CandidateNiche) -> NicheScore | None:
     term = candidate.term
 
     # Check quota before starting
-    if not quota_tracker.can_afford(102):
+    if not quota_tracker.can_afford(105):  # 100 search + 1 videos + 1 channels + 3 comments
         console.print(f"[red]Skipping '{term}' - insufficient quota[/red]")
         return None
 
@@ -402,8 +485,15 @@ def analyze_niche(youtube, candidate: CandidateNiche) -> NicheScore | None:
         channel_ids = list(set(v.channel_id for v in long_videos if v.channel_id))
         channels = fetch_channel_stats(youtube, channel_ids)
 
-        # Step 4: Compute score using only long-form English videos
-        return compute_score(term, long_videos, channels, total_results, candidate.parent_chain)
+        # Step 4: Scrape comments from top-viewed videos for buying signals
+        # Sample the top 3 videos by views — costs 3 extra quota units
+        top_by_views = sorted(long_videos, key=lambda v: v.view_count, reverse=True)
+        top_ids = [v.video_id for v in top_by_views[:3]]
+        buying_signals = fetch_buying_signals(youtube, top_ids, max_videos=3)
+
+        # Step 5: Compute score using only long-form English videos + buying signals
+        return compute_score(term, long_videos, channels, total_results, candidate.parent_chain,
+                           buying_signals=buying_signals)
 
     except RuntimeError as e:
         console.print(f"[red]Error analyzing '{term}': {e}[/red]")

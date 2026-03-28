@@ -105,7 +105,10 @@ class NicheScore:
     channels_analyzed: list[ChannelData] = field(default_factory=list)
     parent_chain: list[str] = field(default_factory=list)
     top_channels: list[str] = field(default_factory=list)  # Channel URLs of top small channels
-    evidence_videos: list[str] = field(default_factory=list)  # URLs of top evidence videos (small channels with high views)
+    evidence_videos: list[str] = field(default_factory=list)  # URLs of top evidence videos
+    buying_signal_count: int = 0  # Number of comments with buying intent
+    buying_signal_ratio: float = 0.0  # % of comments that are buying signals
+    buying_signal_samples: list[str] = field(default_factory=list)  # Sample buying-intent comments
     searched_at: datetime = field(default_factory=datetime.now)
     quota_cost: int = 0
 

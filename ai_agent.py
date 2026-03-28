@@ -1,6 +1,7 @@
 """Agentic YouTube niche explorer — autonomous browsing with AI judgment."""
 import asyncio
 import json
+import random
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -83,7 +84,20 @@ class NicheAgent:
 
             # Force diversity: after 3 steps in one area, pivot to something new
             self._steps_in_current_area += 1
-            if self._steps_in_current_area > 3:
+
+            # CHAOS MODE: 30% chance of completely random jump to a new area
+            # This mimics how humans discover opportunities — by stumbling into unexpected places
+            if self._steps_in_current_area > 1 and random.random() < 0.30:
+                from config import ALL_INTENT_TEMPLATES
+                random_template, random_category = random.choice(ALL_INTENT_TEMPLATES)
+                decision = {
+                    "type": "explore_autocomplete",
+                    "query": random_template,
+                    "reasoning": f"CHAOS JUMP — randomly exploring '{random_template}' ({random_category}) to discover unexpected niches"
+                }
+                self._steps_in_current_area = 0
+                self._explored_areas.append(f"chaos:{random_category}")
+            elif self._steps_in_current_area > 3:
                 decision = {"type": "pivot", "query": "", "reasoning": "Forced diversity pivot — explored this area enough, moving to a new direction"}
                 self._steps_in_current_area = 0
             else:

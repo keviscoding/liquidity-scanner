@@ -93,7 +93,7 @@ async def _run_standard_async(scan_id: int, config: dict):
     scores = []
     youtube = _get_youtube_client()
     for i, candidate in enumerate(top_candidates):
-        if not quota_tracker.can_afford(102):
+        if not quota_tracker.can_afford(105):
             _progress(scan_id, "Quota exhausted.", "analyze", 80)
             break
         pct = 58 + int((i / max(len(top_candidates), 1)) * 22)
@@ -199,7 +199,7 @@ async def _run_agent_async(scan_id: int, config: dict):
     scores = []
     youtube = _get_youtube_client()
     for i, candidate in enumerate(top_candidates):
-        if not quota_tracker.can_afford(102):
+        if not quota_tracker.can_afford(105):
             break
         pct = 55 + int((i / max(len(top_candidates), 1)) * 25)
         _progress(scan_id, f"Analyzing: {candidate.term}", "analyze", pct)
@@ -256,7 +256,7 @@ async def _run_rescan_async(scan_id: int, config: dict):
     scores = []
     youtube = _get_youtube_client()
     for i, c in enumerate(candidates):
-        if not quota_tracker.can_afford(102):
+        if not quota_tracker.can_afford(105):
             break
         pct = 10 + int((i / len(candidates)) * 60)
         _progress(scan_id, f"Re-scanning: {c.term}", "analyze", pct)
