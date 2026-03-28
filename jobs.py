@@ -236,6 +236,96 @@ async def _run_agent_async(scan_id: int, config: dict):
     db.update_scan_status(scan_id, "completed")
 
 
+# ─── Autonomous Agent Mode (AI drives everything) ────────────────────────────
+
+async def _run_autonomous_async(scan_id: int, config: dict):
+    """Fully autonomous agent — no seeds, no templates, AI decides everything."""
+    max_steps = config.get("agent_max_steps", 25)
+
+    if not _ai_available():
+        _progress(scan_id, "Error: LLM_API_KEY required for autonomous mode.", "error", 0)
+        db.update_scan_status(scan_id, "failed", error="No LLM key")
+        return
+
+    _progress(scan_id, "Autonomous agent starting — AI will explore YouTube freely", "agent", 2)
+
+    from ai_client import get_fast_client
+    from autonomous_agent import AutonomousAgent
+
+    llm = get_fast_client()
+
+    def on_step(step):
+        pct = min(60, 2 + int((step.step_number / max_steps) * 58))
+        msg = f"[{step.action}] {step.reasoning[:100]}"
+        _progress(scan_id, msg, "agent", pct)
+
+    def on_niche_found(niche):
+        _progress(scan_id, f"🎯 FLAGGED: {niche.term}", "agent", 0)
+
+    agent = AutonomousAgent(
+        llm=llm,
+        max_steps=max_steps,
+        on_step=on_step,
+        on_niche_found=on_niche_found,
+    )
+    candidates = await agent.run()
+
+    _progress(scan_id, f"Agent flagged {len(candidates)} niches in {len(agent.steps)} steps", "agent", 62)
+
+    areas = list(set(agent.areas_explored))
+    db.save_agent_session(scan_id, f"autonomous ({', '.join(areas[:5])})", agent.steps, len(candidates))
+
+    if not candidates:
+        _progress(scan_id, "Agent found no candidates. Try again — results vary each run.", "done", 100)
+        db.update_scan_status(scan_id, "completed")
+        return
+
+    # Score the flagged niches
+    _progress(scan_id, "Scoring branch counts on flagged niches...", "score", 65)
+    candidates = score_branch_counts(candidates, max_to_check=min(100, len(candidates)))
+    top_candidates = rank_candidates(candidates, top_n=config.get("max_searches", 30))
+
+    _progress(scan_id, f"YouTube API scoring on {len(top_candidates)} niches...", "analyze", 70)
+    scores = []
+    youtube = _get_youtube_client()
+    for i, candidate in enumerate(top_candidates):
+        if not quota_tracker.can_afford(105):
+            break
+        pct = 70 + int((i / max(len(top_candidates), 1)) * 15)
+        _progress(scan_id, f"Analyzing: {candidate.term}", "analyze", pct)
+        try:
+            score = analyze_niche(youtube, candidate)
+            if score:
+                scores.append(score)
+                sorted_so_far = sorted(scores, key=lambda s: s.overall_score, reverse=True)
+                from analyzer import dedup_niches
+                db.save_results(scan_id, dedup_niches(sorted_so_far))
+                _progress(scan_id, f"Found niche #{len(scores)}: {score.term} (score: {score.overall_score})", "analyze", pct)
+        except Exception:
+            pass
+
+    scores.sort(key=lambda s: s.overall_score, reverse=True)
+    from analyzer import dedup_niches
+    scores = dedup_niches(scores)
+    db.save_results(scan_id, scores)
+    _progress(scan_id, f"Scoring complete: {len(scores)} unique niches", "analyze", 88)
+
+    # AI deep analysis
+    ai_analyses = []
+    if _ai_available() and scores:
+        _progress(scan_id, "AI deep analysis on top niches...", "ai", 90)
+        try:
+            from ai_scorer import ai_score_pipeline
+            ai_analyses = await ai_score_pipeline(scores[:15], max_deep=10,
+                on_progress=lambda msg: _progress(scan_id, msg, "ai", 0))
+            db.save_ai_analyses(scan_id, ai_analyses)
+        except Exception as e:
+            _progress(scan_id, f"AI analysis error: {str(e)[:60]}", "ai", 95)
+
+    _progress(scan_id, f"Autonomous scan complete! {len(scores)} niches across {len(areas)} areas.", "done", 100)
+    db.update_scan_status(scan_id, "completed")
+
+
 # ─── Rescan Mode ──────────────────────────────────────────────────────────────
 
 async def _run_rescan_async(scan_id: int, config: dict):
@@ -305,6 +395,8 @@ def _run_scan(scan_id: int, config: dict):
             asyncio.run(_run_agent_async(scan_id, config))
         elif scan_type == "rescan":
             asyncio.run(_run_rescan_async(scan_id, config))
+        elif scan_type == "autonomous":
+            asyncio.run(_run_autonomous_async(scan_id, config))
         else:
             asyncio.run(_run_standard_async(scan_id, config))
 

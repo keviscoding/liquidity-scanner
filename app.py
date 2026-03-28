@@ -13,7 +13,7 @@ from pydantic import BaseModel
 import database as db
 import jobs
 import quota as quota_tracker
-from config import ensure_dirs, YOUTUBE_API_KEY
+from config import ensure_dirs, YOUTUBE_API_KEY, LLM_API_KEY
 
 ensure_dirs()
 db.init_db()
@@ -71,20 +71,23 @@ class StartScanRequest(BaseModel):
     max_seeds: int = 25
     max_depth: int = 3
     extra_seeds: list[str] = []
-    scan_type: str = "standard"  # standard, agent, rescan
+    scan_type: str = "standard"  # standard, agent, rescan, autonomous
     agent_direction: str = ""
     agent_max_iterations: int = 8
     agent_max_youtube: int = 5
+    agent_max_steps: int = 25  # for autonomous mode
 
 
 @app.post("/api/scans")
 async def start_scan(req: StartScanRequest):
     if req.scan_type == "agent" and not req.agent_direction:
         raise HTTPException(400, "Agent mode requires a direction")
-    if not req.dry_run and req.scan_type != "rescan" and not YOUTUBE_API_KEY:
+    if not req.dry_run and req.scan_type not in ("rescan",) and not YOUTUBE_API_KEY:
         raise HTTPException(400, "No YouTube API key configured")
     if not req.dry_run and not quota_tracker.can_afford(200):
         raise HTTPException(400, f"Insufficient quota: {quota_tracker.get_remaining_quota()} units left")
+    if req.scan_type == "autonomous" and not LLM_API_KEY:
+        raise HTTPException(400, "Autonomous mode requires LLM_API_KEY")
 
     config = req.model_dump()
     mode = "dry_run" if req.dry_run else req.scan_type
