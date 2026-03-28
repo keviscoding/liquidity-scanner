@@ -12,9 +12,9 @@ function setScanType(type) {
   const seedGroup = document.getElementById('seedGroup');
 
   if (agentOpts) agentOpts.style.display = type === 'agent' ? 'block' : 'none';
-  if (dryRunGroup) dryRunGroup.style.display = type === 'rescan' ? 'none' : 'block';
-  if (apiOptions) apiOptions.style.display = (type === 'rescan' || document.getElementById('dryRun')?.checked) ? 'none' : 'block';
-  if (seedGroup) seedGroup.style.display = type === 'rescan' ? 'none' : 'block';
+  if (dryRunGroup) dryRunGroup.style.display = (type === 'rescan' || type === 'autonomous') ? 'none' : 'block';
+  if (apiOptions) apiOptions.style.display = (type === 'rescan' || type === 'autonomous' || document.getElementById('dryRun')?.checked) ? 'none' : 'block';
+  if (seedGroup) seedGroup.style.display = (type === 'rescan' || type === 'autonomous') ? 'none' : 'block';
 }
 
 /* ── Modal ────────────────────────────────────────────────────────────────── */
