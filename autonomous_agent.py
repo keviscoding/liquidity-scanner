@@ -42,50 +42,54 @@ WHY this worked — the structure:
 
 The niche MUST have a clear PRODUCT someone could sell. Ask yourself: "What would someone pay $20-100 for in this niche?"
 
-GOOD niches — the person would PAY $20-100 for a solution:
-- "roblox blox fruits script no key" → sell scripts (EXACT Cronus Zen pattern)
-- "fortnite macro controller ps5" → sell macro configs
-- "lightroom preset pack free download" → sell premium preset packs
-- "obs stream overlay template" → sell overlay packs
-- "capcut template pack viral reels" → sell template packs
-- "midjourney prompt pack portrait" → sell prompt collections
-- "fl studio drum kit 2026" → sell sample packs
-- "shopify theme customization" → sell themes or customization service
-- "tinder ai photo generator" → sell AI photo service
-- "cricut svg files wedding" → sell SVG bundles
+The key test: if someone watches a video on this topic, would they CLICK A LINK in the description and SPEND $20-100? If "no, they just wanted free info" — skip it.
 
-Notice the PATTERN: every good niche has someone who wants a SPECIFIC DIGITAL SHORTCUT to get a result they can't easily get on their own. They want an unfair advantage, a time-saver, or a creative asset they can't make themselves.
+Signs of a GOOD micro-niche:
+- Small channels (under 10K subs) getting 10K-100K views on the topic
+- Many autocomplete variations of the same theme (people keep searching different angles)
+- The word "free" or "download" appearing (means people know it's normally paid)
+- Comments asking "where do I get this?", "link?", "does this work?"
+- Multiple new channels ALL posting about the SAME specific topic (feeding frenzy)
+- It's SPECIFIC — not "gaming" but a specific device + specific game + specific mechanic
 
-BAD niches — freely available general knowledge, nothing to sell:
-- "how to use chopsticks" → trivially simple
-- "how to tie a tie" → free knowledge
-- "best laptop for students" → just product reviews
-- "home assistant setup beginner" → generic tutorial
-- "how to use chatgpt" → too broad, free tool
+Signs of a BAD "niche":
+- Generic tutorials anyone can learn free ("how to use chopsticks", "tutorial for beginners")
+- Just product reviews ("best laptop for students")
+- Too broad ("how to use chatgpt", "ai video editing")
+- Pure entertainment with no product angle ("funny fails", "reaction videos")
+- Dominated by huge channels — small channels can't compete
 
-The REAL test: if someone watches a video on this topic, would they click a link in the description and spend money? If the answer is "no, they just wanted free info" — it's a bad niche.
+## CRITICAL: DIVERSITY REQUIREMENT
+
+You MUST explore AT LEAST 5 COMPLETELY DIFFERENT WORLDS in every scan. After exploring one area for 2-3 steps, you MUST jump to something TOTALLY UNRELATED. The goal is to scan ACROSS YouTube, not drill into one corner.
+
+Examples of different worlds (explore at least 5 of these):
+- Gaming peripherals & mods (every game has its own ecosystem)
+- Photography/videography gear & software (presets, LUTs, overlays)
+- Music production (sample packs, plugins, presets)
+- E-commerce & side hustles (specific platforms + specific methods)
+- Crafting/DIY machines (Cricut, 3D printers, laser cutters + specific projects)
+- Beauty/skincare devices & treatments (LED masks, microneedling, specific routines)
+- Fitness tech & programs (specific apps, wearables, workout plans)
+- Smart home & automation (specific devices, specific configurations)
+- AI tools for specific professions (not general "AI tools" — specific use cases)
+- Vehicle mods & tuning (specific cars, specific mods, specific tools)
+- Pet care products & training (specific breeds, specific issues)
+- Education tech (specific exam prep, specific courses, specific certifications)
+- Dating/social media growth (specific platforms, specific strategies)
+- Cooking/kitchen gadgets (specific devices, specific cuisines)
+- Financial tools (specific trading platforms, specific strategies)
+
+DO NOT spend more than 3 steps in ANY single world. Jump aggressively.
 
 ## HOW TO EXPLORE
 
-Think about ECOSYSTEMS, not keywords. Every popular platform/game/tool has an ecosystem of people who want shortcuts:
-- Games → scripts, macros, configs, hacks, bots
-- Creative software → presets, templates, packs, assets, LUTs, brushes
-- Business tools → templates, automations, workflows, integrations
-- Personal improvement → courses, coaching, transformation services
-- Hardware/devices → settings, configurations, mods, accessories
-
-When autocomplete shows many specific variations of a theme (like "fortnite macro controller" showing pickup/prefire/edit/drag edit variations), that's an ADDICTION LOOP — the same audience keeps searching for more. That's gold.
-
-Also watch for the word "free" or "download" in autocomplete — that means people KNOW this is normally a PAID product. They're trying to get it free, which proves the market exists.
-
-## HOW TO EXPLORE
-
-1. Start somewhere unexpected — browse trending, pick a random autocomplete path
-2. When you see an interesting PRODUCT or TOOL mentioned, explore its ecosystem
-3. Look for specificity: "[product] + [specific platform] + [specific use case]"
-4. Check if autocomplete shows many variations (= high search demand)
-5. Look for intersections you wouldn't predict
-6. Be spontaneous — jump between completely unrelated areas every 2-3 steps
+1. Start somewhere RANDOM — don't default to gaming or tech. Pick something surprising.
+2. Use autocomplete to probe: type 2-3 words and see what YouTube suggests.
+3. If suggestions are specific and numerous (8+ suggestions), that's high demand — explore deeper.
+4. If suggestions are generic or few, PIVOT immediately to a different world.
+5. When you see a promising specific term, flag it for scoring.
+6. Every 2-3 steps, JUMP to a completely different world — even if current one is interesting.
 
 Use autocomplete (FREE) to probe. Only use search_youtube (EXPENSIVE, 100 units) to validate a niche you're already excited about.
 

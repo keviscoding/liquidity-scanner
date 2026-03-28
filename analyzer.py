@@ -49,6 +49,10 @@ _NON_ENGLISH_WORDS = {
     "cara", "membuat", "untuk", "dengan", "dan", "dari", "ini", "itu",
     "bisa", "sudah", "belum", "sangat", "juga", "atau", "tapi",
     "pakai", "menggunakan", "tanpa", "gratis", "mudah", "cepat",
+    "mari", "selesaikan", "dapatkan", "lebih", "banyak", "malam",
+    "hutan", "bermain", "semua", "harus", "baru", "lagi", "saja",
+    "akan", "bukan", "tidak", "ada", "apa", "siapa", "dimana",
+    "kapan", "kenapa", "bagaimana", "kalau", "mau", "ingin",
     # Portuguese
     "como", "fazer", "para", "voce", "isso", "aqui", "muito",
     # Spanish
@@ -57,7 +61,7 @@ _NON_ENGLISH_WORDS = {
 
 
 def is_english_title(title: str) -> bool:
-    """Check if a video title is primarily English."""
+    """Check if a video title is primarily English using multiple detection methods."""
     if not title:
         return True
     # Check for non-Latin script characters
@@ -67,8 +71,20 @@ def is_english_title(title: str) -> bool:
     # Check for romanized non-English words (Hindi written in Latin chars, etc.)
     words = set(title.lower().split())
     non_eng_count = len(words & _NON_ENGLISH_WORDS)
-    # If 2+ non-English words detected, likely not English content
-    return non_eng_count < 2
+    if non_eng_count >= 2:
+        return False
+    # Use langdetect as backup for Latin-script languages we might miss
+    try:
+        from langdetect import detect
+        # Only run on titles with enough text to detect (>20 chars)
+        clean = re.sub(r'[#@\[\](){}|*📌📝✅✨🔥💰🎮]', '', title).strip()
+        if len(clean) > 20:
+            lang = detect(clean)
+            if lang not in ('en',):
+                return False
+    except Exception:
+        pass  # If detection fails, assume English
+    return True
 
 
 def _get_youtube_client():
@@ -357,6 +373,19 @@ def compute_score(
         specificity = 40
     else:
         specificity = 15
+
+    # Penalize generic tutorial/beginner terms — these are NOT micro-niches
+    _generic_penalties = [
+        "tutorial for beginners", "beginner tutorial", "for beginners",
+        "full course", "full tutorial", "complete guide", "complete tutorial",
+        "crash course", "from scratch", "step by step",
+        "for dummies", "explained simply", "basics",
+    ]
+    term_lower_check = term.lower()
+    for gp in _generic_penalties:
+        if gp in term_lower_check:
+            specificity = max(0, specificity - 40)  # Heavy penalty
+            break
 
     # --- Urgency / Intent Signal Boost ---
     from config import URGENCY_WORDS
