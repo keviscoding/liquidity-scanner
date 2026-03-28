@@ -82,16 +82,47 @@ Examples of different worlds (explore at least 5 of these):
 
 DO NOT spend more than 3 steps in ANY single world. Jump aggressively.
 
-## HOW TO EXPLORE
+## HOW TO EXPLORE (CRITICAL — READ CAREFULLY)
 
-1. Start somewhere RANDOM — don't default to gaming or tech. Pick something surprising.
-2. Use autocomplete to probe: type 2-3 words and see what YouTube suggests.
-3. If suggestions are specific and numerous (8+ suggestions), that's high demand — explore deeper.
-4. If suggestions are generic or few, PIVOT immediately to a different world.
-5. When you see a promising specific term, flag it for scoring.
-6. Every 2-3 steps, JUMP to a completely different world — even if current one is interesting.
+Your job is to DRILL DEEP into product ecosystems until you hit specific product-level terms.
+NEVER flag a generic tutorial or broad term. ALWAYS go deeper.
 
-Use autocomplete (FREE) to probe. Only use search_youtube (EXPENSIVE, 100 units) to validate a niche you're already excited about.
+### THE DRILLING PATTERN (follow this!):
+
+Level 1: Start with a PRODUCT ECOSYSTEM (e.g. "fl studio")
+Level 2: Autocomplete to find sub-categories (e.g. "fl studio preset", "fl studio drum kit", "fl studio plugin")
+Level 3: Autocomplete deeper on promising sub-cats (e.g. "fl studio drum kit trap free download")
+Level 4: THIS is where you flag — "fl studio drum kit trap free download" is specific enough to be a real product niche
+
+### EXAMPLES OF CORRECT DRILLING:
+
+"cricut" → "cricut svg" → "cricut svg wedding" → FLAG "cricut svg wedding invitation free" ✅
+"fortnite" → "fortnite macro" → "fortnite macro controller" → FLAG "fortnite edit macro controller ps5" ✅
+"notion" → "notion template" → "notion template business" → FLAG "notion template small business inventory" ✅
+"lightroom" → "lightroom preset" → "lightroom preset moody" → FLAG "lightroom preset moody dark film free" ✅
+
+### EXAMPLES OF WHAT NOT TO FLAG:
+
+"fl studio tutorial" ❌ (generic tutorial — DRILL DEEPER)
+"cricut design space tutorial" ❌ (generic — go to specific product level)
+"resistance bands workout" ❌ (free info — nothing to sell)
+"davinci resolve for beginners" ❌ (generic beginner tutorial)
+"gaming mouse for small hands" ❌ (product review — you can't sell mice)
+
+### THE EXPLORATION CYCLE:
+
+1. Pick a product ecosystem (a tool, software, device, platform)
+2. Autocomplete to find sub-categories
+3. Autocomplete AGAIN on the most specific/product-adjacent sub-categories
+4. Flag ONLY terms that are at the specific product level (4+ words, implies a downloadable/purchasable thing)
+5. After 4-5 steps in one ecosystem, JUMP to a completely different one
+6. Repeat across 6-8 different ecosystems
+
+Use autocomplete (FREE) extensively to drill down. Only use search_youtube (EXPENSIVE, 100 units) to validate a niche you've already drilled down to product level and want to confirm has small channels winning.
+
+### ENGLISH ONLY
+
+All niches must target English-speaking audiences. If autocomplete returns suggestions in other languages (Hindi like "kaise kare", Indonesian like "cara membuat", etc.), ignore them and move on.
 
 ## YOUR TOOLS
 
@@ -150,7 +181,7 @@ class AutonomousAgent:
     def __init__(
         self,
         llm: LLMClient,
-        max_steps: int = 25,
+        max_steps: int = 40,
         on_step: Callable[[AgentStep], None] | None = None,
         on_niche_found: Callable[[CandidateNiche], None] | None = None,
     ):
@@ -251,10 +282,8 @@ class AutonomousAgent:
 
             self._log(step_num, tool_name, thinking, json.dumps(args), result_summary)
 
-            # AUTO-FLAG: If autocomplete/alphabet_expand found a high-demand specific term,
-            # automatically flag promising candidates
-            if tool_name in ("autocomplete", "alphabet_expand") and "error" not in result:
-                self._auto_flag_from_suggestions(result, area, step_num)
+            # NO auto-flagging. The AI decides what to flag via "flag_niche" tool.
+            # Auto-flagging was grabbing everything and producing mediocre results.
 
         # MONETIZABILITY FILTER: Ask AI to remove terms with no product angle
         if self.flagged_niches:
@@ -369,6 +398,11 @@ Return JSON: {{"keep": ["term1", "term2", ...], "remove": ["term3", "term4", ...
         term = term.lower().strip()
         # Don't double-flag
         if any(n.term == term for n in self.flagged_niches):
+            return
+        # Reject non-English search terms
+        from analyzer import is_english_title
+        if not is_english_title(term):
+            self.history.append(f"[SKIP] Rejected non-English term: '{term}'")
             return
         niche = CandidateNiche(
             term=term,

@@ -38,13 +38,16 @@ _NON_LATIN_RE = re.compile(
 # Common romanized non-English words (Hindi, Indonesian, etc.)
 _NON_ENGLISH_WORDS = {
     # Hindi/Urdu romanized
-    "kaise", "banaye", "kya", "hote", "hai", "kaise", "banaen", "mein", "karo",
+    "kaise", "banaye", "kya", "hote", "hai", "banaen", "mein", "karo", "kare",
     "karein", "karna", "wala", "wali", "nahi", "hain", "aur", "ke", "ka", "ki",
     "se", "ko", "par", "yeh", "ye", "bahut", "bohot", "accha", "sab", "kuch",
-    "aap", "tum", "mai", "ek", "do", "bhi", "sirf", "matlab", "lekin",
+    "aap", "tum", "mai", "ek", "bhi", "sirf", "matlab", "lekin",
     "pehle", "baad", "jaise", "kyun", "kyunki", "abhi", "jab", "isliye",
     "chahiye", "dikha", "dikhaye", "seekhe", "seekho", "samjhe", "bataye",
-    "dekhiye", "jaane", "janiye",
+    "dekhiye", "jaane", "janiye", "dekho", "karo", "kariye", "tarike",
+    "tarika", "sakte", "sakti", "wale", "raha", "rahi", "rahe",
+    "paisa", "kamaye", "kamao", "kamaiye", "sikhe", "sikho",
+    "jindabaad", "zindagi", "dosto", "bhai",
     # Indonesian/Malay
     "cara", "membuat", "untuk", "dengan", "dan", "dari", "ini", "itu",
     "bisa", "sudah", "belum", "sangat", "juga", "atau", "tapi",
@@ -53,6 +56,9 @@ _NON_ENGLISH_WORDS = {
     "hutan", "bermain", "semua", "harus", "baru", "lagi", "saja",
     "akan", "bukan", "tidak", "ada", "apa", "siapa", "dimana",
     "kapan", "kenapa", "bagaimana", "kalau", "mau", "ingin",
+    "bongkar", "keren", "banget", "gampang", "cuma", "seru",
+    "bikin", "gue", "gua", "lu", "loe", "dong", "nih", "sih",
+    "emang", "udah", "udh", "gimana", "yuk", "ayo",
     # Portuguese
     "como", "fazer", "para", "voce", "isso", "aqui", "muito",
     # Spanish
@@ -74,11 +80,11 @@ def is_english_title(title: str) -> bool:
     if non_eng_count >= 2:
         return False
     # Use langdetect as backup for Latin-script languages we might miss
+    # Only run on longer titles — short technical phrases get misclassified
     try:
         from langdetect import detect
-        # Only run on titles with enough text to detect (>20 chars)
-        clean = re.sub(r'[#@\[\](){}|*📌📝✅✨🔥💰🎮]', '', title).strip()
-        if len(clean) > 20:
+        clean = re.sub(r'[#@\[\](){}|*📌📝✅✨🔥💰🎮\d]', '', title).strip()
+        if len(clean) > 40 and len(clean.split()) >= 6:
             lang = detect(clean)
             if lang not in ('en',):
                 return False
