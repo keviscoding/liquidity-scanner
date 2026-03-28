@@ -102,11 +102,18 @@ async def _run_standard_async(scan_id: int, config: dict):
             score = analyze_niche(youtube, candidate)
             if score:
                 scores.append(score)
+                # Stream: save incremental results so UI shows niches as they're found
+                sorted_so_far = sorted(scores, key=lambda s: s.overall_score, reverse=True)
+                from analyzer import dedup_niches
+                db.save_results(scan_id, dedup_niches(sorted_so_far))
+                _progress(scan_id, f"Found niche #{len(scores)}: {score.term} (score: {score.overall_score})", "analyze", pct)
         except Exception as e:
             _progress(scan_id, f"Error: {candidate.term}: {str(e)[:60]}", "analyze", pct)
 
     scores.sort(key=lambda s: s.overall_score, reverse=True)
-    _progress(scan_id, f"Formula scoring done: {len(scores)} niches", "analyze", 82)
+    from analyzer import dedup_niches
+    scores = dedup_niches(scores)
+    _progress(scan_id, f"Formula scoring done: {len(scores)} niches (after dedup)", "analyze", 82)
     db.save_results(scan_id, scores)
 
     # Step 6: AI scoring (if enabled)

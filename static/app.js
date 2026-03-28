@@ -114,9 +114,54 @@ function startProgressStream(scanId) {
       log.scrollTop = log.scrollHeight;
       while (log.children.length > 40) log.removeChild(log.firstChild);
     }
+
+    // Live-reload results table when a new niche is found
+    if (data.message && data.message.startsWith('Found niche #')) {
+      refreshResultsTable(scanId);
+    }
   };
 
   es.onerror = () => { es.close(); };
+}
+
+/* ── Live results refresh during scan ──────────────────────────────────── */
+async function refreshResultsTable(scanId) {
+  try {
+    const resp = await fetch(`/api/results/${scanId}`);
+    if (!resp.ok) return;
+    const results = await resp.json();
+    const tbody = document.getElementById('tableBody');
+    if (!tbody || !results.length) return;
+
+    tbody.innerHTML = '';
+    results.forEach((r, i) => {
+      const row = document.createElement('tr');
+      row.className = 'result-row';
+      row.dataset.term = r.term;
+      row.dataset.overall = r.overall_score;
+      row.dataset.liquidity = r.liquidity_score;
+      row.dataset.velocity = r.velocity_score;
+      row.innerHTML = `
+        <td>${i + 1}</td>
+        <td class="term-cell">${r.term}</td>
+        <td><span class="score ${scoreClass(r.overall_score)}">${r.overall_score}</span></td>
+        <td>${r.liquidity_score}</td>
+        <td>${r.velocity_score}</td>
+        <td>${r.videos_last_30d || 0}</td>
+        <td>${Math.round(r.avg_views || 0).toLocaleString()}</td>
+        <td>${Math.round(r.avg_channel_subs || 0).toLocaleString()}</td>
+        <td>${r.small_channels_pct || 0}%</td>
+      `;
+      row.onclick = () => showDetail(r);
+      tbody.appendChild(row);
+    });
+  } catch(e) {}
+}
+
+function scoreClass(s) {
+  if (s >= 75) return 'score-high';
+  if (s >= 50) return 'score-mid';
+  return 'score-low';
 }
 
 /* ── Results table: filter & sort ────────────────────────────────────────── */

@@ -60,6 +60,15 @@ class VideoData:
     comment_count: int = 0
     duration_seconds: int = 0
 
+    @property
+    def url(self) -> str:
+        return f"https://www.youtube.com/watch?v={self.video_id}" if self.video_id else ""
+
+    @property
+    def is_short(self) -> bool:
+        """Videos under 90 seconds are likely YouTube Shorts."""
+        return self.duration_seconds > 0 and self.duration_seconds < 90
+
 
 @dataclass
 class ChannelData:
@@ -96,6 +105,7 @@ class NicheScore:
     channels_analyzed: list[ChannelData] = field(default_factory=list)
     parent_chain: list[str] = field(default_factory=list)
     top_channels: list[str] = field(default_factory=list)  # Channel URLs of top small channels
+    evidence_videos: list[str] = field(default_factory=list)  # URLs of top evidence videos (small channels with high views)
     searched_at: datetime = field(default_factory=datetime.now)
     quota_cost: int = 0
 

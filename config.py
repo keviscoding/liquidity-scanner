@@ -20,7 +20,7 @@ AI_SCORING_ENABLED = os.getenv("AI_SCORING_ENABLED", "true").lower() == "true"
 
 DAILY_QUOTA_LIMIT = 10_000
 SEARCH_QUOTA_COST = 100
-MAX_SEARCHES_PER_RUN = 50
+MAX_SEARCHES_PER_RUN = 75
 AUTOCOMPLETE_DELAY = 0.3
 AUTOCOMPLETE_MAX_DEPTH = 3
 MIN_WORD_COUNT_FOR_CANDIDATE = 3
@@ -60,6 +60,22 @@ HIGH_INTENT_PREFIXES = [
     "honest review",
     "is it worth it",
     "unboxing",
+    # Settings & configurations (high buying intent)
+    "best settings for",
+    "best script for",
+    "best mod for",
+    "best preset for",
+    "best template for",
+    "best config for",
+    "how to setup",
+    "how to configure",
+    "how to install",
+    "step by step",
+    # Troubleshooting
+    "not working fix",
+    "error fix",
+    "problem solution",
+    "keeps crashing",
 ]
 
 # Broad category seeds - one or two words per major YouTube category.

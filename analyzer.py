@@ -35,13 +35,40 @@ _NON_LATIN_RE = re.compile(
 )
 
 
+# Common romanized non-English words (Hindi, Indonesian, etc.)
+_NON_ENGLISH_WORDS = {
+    # Hindi/Urdu romanized
+    "kaise", "banaye", "kya", "hote", "hai", "kaise", "banaen", "mein", "karo",
+    "karein", "karna", "wala", "wali", "nahi", "hain", "aur", "ke", "ka", "ki",
+    "se", "ko", "par", "yeh", "ye", "bahut", "bohot", "accha", "sab", "kuch",
+    "aap", "tum", "mai", "ek", "do", "bhi", "sirf", "matlab", "lekin",
+    "pehle", "baad", "jaise", "kyun", "kyunki", "abhi", "jab", "isliye",
+    "chahiye", "dikha", "dikhaye", "seekhe", "seekho", "samjhe", "bataye",
+    "dekhiye", "jaane", "janiye",
+    # Indonesian/Malay
+    "cara", "membuat", "untuk", "dengan", "dan", "dari", "ini", "itu",
+    "bisa", "sudah", "belum", "sangat", "juga", "atau", "tapi",
+    "pakai", "menggunakan", "tanpa", "gratis", "mudah", "cepat",
+    # Portuguese
+    "como", "fazer", "para", "voce", "isso", "aqui", "muito",
+    # Spanish
+    "como", "hacer", "para", "esto", "aqui", "muy", "mejor",
+}
+
+
 def is_english_title(title: str) -> bool:
-    """Check if a video title is primarily English (no significant non-Latin script)."""
+    """Check if a video title is primarily English."""
     if not title:
         return True
+    # Check for non-Latin script characters
     non_latin_chars = len(_NON_LATIN_RE.findall(title))
-    # Allow up to 2 non-Latin chars (emojis get misclassified sometimes)
-    return non_latin_chars <= 2
+    if non_latin_chars > 2:
+        return False
+    # Check for romanized non-English words (Hindi written in Latin chars, etc.)
+    words = set(title.lower().split())
+    non_eng_count = len(words & _NON_ENGLISH_WORDS)
+    # If 2+ non-English words detected, likely not English content
+    return non_eng_count < 2
 
 
 def _get_youtube_client():
@@ -307,6 +334,10 @@ def compute_score(
     top_small = sorted(small_channels.values(), key=lambda c: c.subscriber_count)[:5]
     top_channel_urls = [c.url for c in top_small]
 
+    # Evidence videos: top 5 videos from small channels sorted by views (the proof of liquidity)
+    evidence = sorted(small_channel_vids, key=lambda v: v.view_count, reverse=True)[:5] if small_channel_vids else []
+    evidence_urls = [v.url for v in evidence]
+
     return NicheScore(
         term=term,
         overall_score=round(overall, 1),
@@ -325,6 +356,7 @@ def compute_score(
         best_video=best,
         best_video_channel_subs=best_ch_subs,
         top_channels=top_channel_urls,
+        evidence_videos=evidence_urls,
         videos_analyzed=videos,
         channels_analyzed=channels,
         parent_chain=parent_chain,
@@ -357,12 +389,21 @@ def analyze_niche(youtube, candidate: CandidateNiche) -> NicheScore | None:
 
         videos = fetch_video_stats(youtube, video_ids)
 
-        # Step 3: Get unique channel IDs and fetch stats
-        channel_ids = list(set(v.channel_id for v in videos if v.channel_id))
+        # Filter out Shorts (under 90 seconds) — they don't indicate real monetizable demand
+        long_videos = [v for v in videos if not v.is_short]
+        # Also filter out non-English titles that slipped past the search filter
+        long_videos = [v for v in long_videos if is_english_title(v.title)]
+
+        # Need at least 3 long-form English videos to consider this a valid niche
+        if len(long_videos) < 3:
+            return None
+
+        # Step 3: Get unique channel IDs and fetch stats (only for remaining videos)
+        channel_ids = list(set(v.channel_id for v in long_videos if v.channel_id))
         channels = fetch_channel_stats(youtube, channel_ids)
 
-        # Step 4: Compute score
-        return compute_score(term, videos, channels, total_results, candidate.parent_chain)
+        # Step 4: Compute score using only long-form English videos
+        return compute_score(term, long_videos, channels, total_results, candidate.parent_chain)
 
     except RuntimeError as e:
         console.print(f"[red]Error analyzing '{term}': {e}[/red]")
@@ -422,11 +463,18 @@ def dedup_niches(scores: list[NicheScore]) -> list[NicheScore]:
         "swap": "change", "replace": "change", "switch": "change", "transform": "change",
         "make": "create", "build": "create", "generate": "create",
         "get": "find", "download": "get",
-        "tutorial": "guide", "course": "guide", "lesson": "guide",
+        "tutorial": "guide", "course": "guide", "lesson": "guide", "setup": "guide",
         "cheap": "budget", "affordable": "budget",
         "pc": "computer", "laptop": "computer",
-        "app": "software", "tool": "software", "program": "software",
+        "app": "software", "tool": "software", "program": "software", "tools": "software",
         "through": "using", "via": "using",
+        # Domain synonyms
+        "food": "diet", "meal": "diet", "feeding": "diet", "nutrition": "diet",
+        "old": "senior", "elderly": "senior", "aging": "senior", "aged": "senior",
+        "failure": "disease", "problems": "disease", "issues": "disease",
+        "controller": "system", "hub": "system",
+        "sprinkler": "irrigation",
+        "stripe": "payment",
     }
 
     def _normalize(term: str) -> set[str]:
