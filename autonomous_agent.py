@@ -256,7 +256,58 @@ class AutonomousAgent:
             if tool_name in ("autocomplete", "alphabet_expand") and "error" not in result:
                 self._auto_flag_from_suggestions(result, area, step_num)
 
+        # MONETIZABILITY FILTER: Ask AI to remove terms with no product angle
+        if self.flagged_niches:
+            self.flagged_niches = await self._filter_monetizable(self.flagged_niches)
+
         return self.flagged_niches
+
+    async def _filter_monetizable(self, niches: list[CandidateNiche]) -> list[CandidateNiche]:
+        """Use AI to filter out terms where there's nothing to sell.
+        This is the 'does this make sense' filter — removes workout routines,
+        product reviews, generic tutorials, and pure entertainment."""
+        terms = [n.term for n in niches]
+
+        # Batch them (max 50 per AI call)
+        kept_terms = set()
+        for i in range(0, len(terms), 50):
+            batch = terms[i:i+50]
+            prompt = f"""Below is a list of YouTube search terms. For each one, decide: could someone CREATE and SELL a digital product (script, template, preset pack, course, tool, service, config, guide) to people searching this term?
+
+KEEP terms where there's a clear sellable digital product angle.
+REMOVE terms that are just:
+- Free workout/exercise content (e.g. "resistance bands chest workout")
+- Physical product reviews you can't sell yourself (e.g. "gaming mouse for small hands")
+- Generic tutorials with no product (e.g. "how to cook pasta")
+- Pure entertainment/information (e.g. "funny dog videos")
+- Hardware reviews where you're not the manufacturer (e.g. "nd filter for iphone")
+
+Terms:
+{json.dumps(batch, indent=2)}
+
+Return JSON: {{"keep": ["term1", "term2", ...], "remove": ["term3", "term4", ...]}}"""
+
+            try:
+                result = await self.llm.complete_json(
+                    "You are a digital product monetization expert. You evaluate whether YouTube search terms represent markets where someone could sell a digital product.",
+                    prompt
+                )
+                keep = result.get("keep", [])
+                for t in keep:
+                    kept_terms.add(t.lower().strip())
+            except Exception:
+                # On error, keep everything (don't lose data)
+                for t in batch:
+                    kept_terms.add(t.lower().strip())
+
+        filtered = [n for n in niches if n.term.lower().strip() in kept_terms]
+
+        removed_count = len(niches) - len(filtered)
+        if removed_count > 0:
+            self._log(0, "filter", f"Monetizability filter removed {removed_count}/{len(niches)} terms with no product angle", "", "")
+            self.history.append(f"[FILTER] Removed {removed_count} terms with no sellable product angle. Kept {len(filtered)}.")
+
+        return filtered
 
     def _summarize_result(self, tool: str, args: dict, result: dict) -> str:
         """Create a human-readable summary of a tool result."""

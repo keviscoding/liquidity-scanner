@@ -610,6 +610,7 @@ def dedup_niches(scores: list[NicheScore]) -> list[NicheScore]:
 
     kept = []
     seen_word_sets = []
+    seen_prefixes = set()
 
     for s in scores:
         words = _normalize(s.term)
@@ -617,12 +618,23 @@ def dedup_niches(scores: list[NicheScore]) -> list[NicheScore]:
             kept.append(s)
             continue
 
+        # Check 1: word overlap (65%+ = duplicate)
         is_dup = False
         for seen in seen_word_sets:
             overlap = len(words & seen) / max(len(words | seen), 1)
             if overlap >= 0.65:
                 is_dup = True
                 break
+
+        # Check 2: shared 2-word prefix (e.g. "resistance bands X" vs "resistance bands Y")
+        if not is_dup:
+            raw_words = s.term.lower().split()
+            if len(raw_words) >= 3:
+                prefix = f"{raw_words[0]} {raw_words[1]}"
+                if prefix in seen_prefixes:
+                    is_dup = True
+                else:
+                    seen_prefixes.add(prefix)
 
         if not is_dup:
             kept.append(s)
