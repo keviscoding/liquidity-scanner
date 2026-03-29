@@ -118,7 +118,21 @@ Level 4: THIS is where you flag — "fl studio drum kit trap free download" is s
 5. After 4-5 steps in one ecosystem, JUMP to a completely different one
 6. Repeat across 6-8 different ecosystems
 
-Use autocomplete (FREE) extensively to drill down. Only use search_youtube (EXPENSIVE, 100 units) to validate a niche you've already drilled down to product level and want to confirm has small channels winning.
+### BROWSER vs API TOOLS — COST STRATEGY
+
+You have TWO ways to get YouTube data:
+1. **Browser tools** (browse_youtube_search, browse_video_page, browse_video_comments, browse_channel_page, browse_related_videos) — COMPLETELY FREE, no quota cost. Use these for ALL exploration and validation.
+2. **API tools** (search_youtube, get_video_details, get_channel_info) — cost quota units. Reserve ONLY as fallback if browser tools fail.
+
+**OPTIMAL WORKFLOW:**
+- autocomplete (FREE) to discover promising terms
+- browse_youtube_search (FREE) to see what videos exist — replaces the 100-unit search_youtube!
+- browse_video_page (FREE) to check descriptions for product links (gumroad, whop, discord)
+- browse_video_comments (FREE) to find buying signals ("where to get?", "link?")
+- browse_channel_page (FREE) to verify small channels getting big views
+- browse_related_videos (FREE) to follow rabbit holes and discover adjacent niches
+
+This means you can do 40+ searches per run instead of just 1-2!
 
 ### ENGLISH ONLY
 
@@ -389,6 +403,63 @@ Return JSON: {{"keep": ["term1", "term2", ...], "remove": ["term3", "term4", ...
                 summary += ". Examples: " + "; ".join(
                     f"\"{s['comment'][:50]}\"" for s in signals[:3]
                 )
+            return summary
+
+        # ─── Browser-based tools (FREE) ──────────────────────────────────
+        elif tool == "browse_youtube_search":
+            videos = result.get("videos", [])
+            summary = f"Browser search '{args.get('query')}': {len(videos)} videos found (FREE). "
+            for v in videos[:5]:
+                summary += f"\n  '{v.get('title', '')[:50]}' by {v.get('channel', '')} ({v.get('views', '')})"
+            return summary
+
+        elif tool == "browse_video_page":
+            title = result.get("title", "")[:50]
+            views = result.get("views", "")
+            channel = result.get("channel", "")
+            subs = result.get("channel_subs", "")
+            product_links = result.get("product_links", [])
+            has_products = result.get("has_product_links", False)
+            desc = result.get("description_preview", "")[:200]
+            summary = f"Video: '{title}' — {views}, by {channel} ({subs})"
+            if has_products:
+                summary += f" 🔗 PRODUCT LINKS FOUND: {', '.join(product_links[:3])}"
+            if desc:
+                summary += f"\n  Description: {desc}"
+            return summary
+
+        elif tool == "browse_video_comments":
+            total = result.get("total_comments", 0)
+            buying = result.get("buying_signal_count", 0)
+            signals = result.get("buying_signals", [])
+            summary = f"Comments: {total} loaded, {buying} buying signals"
+            if signals:
+                summary += ". Examples: " + "; ".join(
+                    f"\"{s['comment'][:60]}\"" for s in signals[:3]
+                )
+            return summary
+
+        elif tool == "browse_channel_page":
+            name = result.get("name", "")
+            subs = result.get("subscribers", "")
+            videos = result.get("recent_videos", [])
+            summary = f"Channel: {name} ({subs}). Recent: "
+            for v in videos[:5]:
+                summary += f"\n  '{v.get('title', '')[:40]}' ({v.get('views', '')})"
+            return summary
+
+        elif tool == "browse_youtube_home":
+            videos = result.get("videos", [])
+            summary = f"YouTube Home: {len(videos)} videos. "
+            for v in videos[:5]:
+                summary += f"\n  '{v.get('title', '')[:40]}' by {v.get('channel', '')} ({v.get('views', '')})"
+            return summary
+
+        elif tool == "browse_related_videos":
+            related = result.get("related_videos", [])
+            summary = f"Related videos: {len(related)} found. "
+            for v in related[:5]:
+                summary += f"\n  '{v.get('title', '')[:40]}' by {v.get('channel', '')} ({v.get('views', '')})"
             return summary
 
         return json.dumps(result, default=str)[:300]

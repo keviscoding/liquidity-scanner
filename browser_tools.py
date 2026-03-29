@@ -369,6 +369,15 @@ TOOL_MAP = {
     "search_youtube": tool_search_youtube,
 }
 
+# Merge browser-based tools if dev-browser is available (FREE, no API quota)
+try:
+    from browser_scraper import is_dev_browser_available, BROWSER_TOOL_MAP, BROWSER_TOOL_DESCRIPTIONS
+    if is_dev_browser_available():
+        TOOL_MAP.update(BROWSER_TOOL_MAP)
+        TOOL_DESCRIPTIONS.update(BROWSER_TOOL_DESCRIPTIONS)
+except ImportError:
+    pass
+
 
 def execute_tool(tool_name: str, args: dict) -> dict:
     """Execute a browsing tool by name with the given arguments.
@@ -396,6 +405,10 @@ def execute_tool(tool_name: str, args: dict) -> dict:
             normalized["region"] = v
         elif k_lower in ("max_results", "limit", "count"):
             normalized["max_results"] = int(v)
+        elif k_lower in ("video_url", "url", "video_link", "link"):
+            normalized["video_url"] = v
+        elif k_lower in ("channel_url", "channel_link", "channel"):
+            normalized["channel_url"] = v
         else:
             normalized[k] = v
 
